@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>自定义返回根目录Crash</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>自定义返回根目录Crash</h1><p>上个版本经过内存等方面的优化，在听云崩溃报告中已经成功将Crash率降低到8‰一下，看了下最新版本七日的Crash率在4.87‰，终于达到标准水平了。下面是听云崩溃率标准：</p>
+
+<p><img src="http://articles.csdn.net/uploads/allimg/150420/125919D91-0.jpg" alt="听云提出的移动应用崩溃率标准" /></p>
+
+<blockquote>
+  <p>今天又发现了一个Crash，本以为是已经解决过的Crash，仔细一看，发现Crash的位置是一样的，但是引起的原因确实另外一个。</p>
+</blockquote>
+
+<h3 id="crash报告">Crash报告</h3>
+
+<p><img src="http://kunkun.qiniudn.com/QQ20160413-1@2x.png" alt="Crash报告" /></p>
+
+<p>从上面的图片 Crash的地方可以看出原因为Hybrid页面调用Native的返回根目录，并选中指定的TabBarItem。</p>
+
+<h3 id="crash原因分析">Crash原因分析</h3>
+
+<p>之所以在这个地方出现Crash是因为：</p>
+
+<ul>
+  <li>Crash线程为WebThread，不是主线程。</li>
+  <li>PSPDFUIKitMainThreadGuard为检查是否在子线程更新UI，若有，在DEBUG状态下会Assert，我们可以直接找到在什么位置出现子线程更新UI，方便解决问题，在Release下就Crash了。</li>
+  <li>Crash之前WebThread执行[UILabel setTextColor]，在往下看会发现确实是在子线程更新了UI动作。找到Crash的原因了。</li>
+</ul>
+
+<h3 id="问题解决">问题解决</h3>
+
+<p>根据Crash报告可以看得出是因为在WebView中JavaScript调用Native方法，Native方法在子线程中执行，要解决这个问题，需要在Native方法中调用主线程，然后在主线程中执行相应的方法。</p>
+
+<p>代码修改前：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">popToRootViewControllerWithSelectedIndex</span><span class="p">:(</span><span class="n">NSInteger</span><span class="p">)</span><span class="nv">index</span> <span class="p">{</span>
+    <span class="p">[</span><span class="n">PopUtils</span> <span class="nf">popToRootViewControllerWithSelectedIndex</span><span class="p">:</span><span class="n">index</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>修改后：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">popToRootViewControllerWithSelectedIndex</span><span class="p">:(</span><span class="n">NSInteger</span><span class="p">)</span><span class="nv">index</span> <span class="p">{</span>
+    <span class="n">dispatch_async</span><span class="p">(</span><span class="n">dispatch_get_main_queue</span><span class="p">(),</span> <span class="o">^</span><span class="p">{</span>
+        <span class="p">[</span><span class="n">PopUtils</span> <span class="nf">popToRootViewControllerWithSelectedIndex</span><span class="p">:</span><span class="n">index</span><span class="p">];</span>
+    <span class="p">});</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>这样就能保证在Native方法在主线程中执行。</p>
+
+<blockquote>
+  <p>问题看似解决，但是这样解决真的好吗？那万一别的地方也调用这个<strong>popToRootViewControllerWithSelectedIndex</strong>方法呢？如果也恰好是在子线程中调用，岂不是同意也会出现Crash。我们应该分析下这个popToRoot方法具体是怎么写的。看是不是要在这个方法中来做一些修改呢？</p>
+</blockquote>
+
+<p><strong>popToRootViewControllerWithSelectedIndex</strong>代码如下：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">+</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">popToRootViewControllerWithSelectedIndex</span><span class="p">:(</span><span class="n">NSInteger</span><span class="p">)</span><span class="nv">index</span> <span class="p">{</span>
+    <span class="n">UITabBarController</span> <span class="o">*</span><span class="n">tabVC</span> <span class="o">=</span> <span class="p">(</span><span class="n">UITabBarController</span> <span class="o">*</span><span class="p">)[</span><span class="n">AppDelegate</span> <span class="nf">sharedAppDelegate</span><span class="p">].</span><span class="n">window</span><span class="p">.</span><span class="n">rootViewController</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">index</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">tabVC</span><span class="p">.</span><span class="n">viewControllers</span><span class="p">.</span><span class="n">count</span><span class="p">)</span> <span class="p">{</span>
+        <span class="p">[</span><span class="n">tabVC</span> <span class="nf">setSelectedIndex</span><span class="p">:</span><span class="n">index</span><span class="p">];</span>
+    <span class="p">}</span>
+    <span class="p">[</span><span class="n">PopUtils</span> <span class="nf">popToRootViewController</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>而popToRootViewController方法只是获取Tabbar的所有Navigation并逐一popToRoot，并不会进行UI的修改，根据Crash报告，可以看出，其实问题就出在<strong>[tabVC setSelectedIndex:index]</strong>这句，设置选中的Index，tabbarItem会改变图片，改变文字的颜色等等，所以我们应该将这里的操作放到主线程中才对。</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">+</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">popToRootViewControllerWithSelectedIndex</span><span class="p">:(</span><span class="n">NSInteger</span><span class="p">)</span><span class="nv">index</span> <span class="p">{</span>
+    <span class="n">dispatch_async</span><span class="p">(</span><span class="n">dispatch_get_main_queue</span><span class="p">(),</span> <span class="o">^</span><span class="p">{</span>
+        <span class="n">UITabBarController</span> <span class="o">*</span><span class="n">tabVC</span> <span class="o">=</span> <span class="p">(</span><span class="n">UITabBarController</span> <span class="o">*</span><span class="p">)[</span><span class="n">AppDelegate</span> <span class="nf">sharedAppDelegate</span><span class="p">].</span><span class="n">window</span><span class="p">.</span><span class="n">rootViewController</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">index</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">tabVC</span><span class="p">.</span><span class="n">viewControllers</span><span class="p">.</span><span class="n">count</span><span class="p">)</span> <span class="p">{</span>
+            <span class="p">[</span><span class="n">tabVC</span> <span class="nf">setSelectedIndex</span><span class="p">:</span><span class="n">index</span><span class="p">];</span>
+        <span class="p">}</span>
+        <span class="p">[</span><span class="n">PopUtils</span> <span class="nf">popToRootViewController</span><span class="p">];</span>
+    <span class="p">});</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>我这里将整个代码块都放到主线程中了。当然也可以只将<strong>[tabVC setSelectedIndex:index];</strong>这句放到主线程中</p>
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

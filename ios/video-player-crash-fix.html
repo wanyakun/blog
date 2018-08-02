@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>Notification KVO Observer Crash</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>Notification KVO Observer Crash</h1><h3 id="前言">前言</h3>
+<p>昨天看在<a href="https://report.tingyun.com/mobile/overview/mobile">听云</a>上的Crash记录，看到我们App中有和视频播放相关的Crash。昨天就点了几次发现从视频播放进入产品详情，并进行商品购物下单，最后从订单详情返回到购物车的时候App Crash。操作轨迹如下：</p>
+
+<p><em>VideoViewController -&gt; VideoDetailViewController -&gt; ProductItemDetailViewController -&gt; UCYWebViewController（结算页）-&gt; PayWayViewController -&gt; UCYWebViewController（订单详情页）-&gt; UCYTabBarController（并选中购物车tab）-&gt; UCYWebViewController(购物车) -&gt; App Crash</em></p>
+
+<p>对于导致App Crash的bug我们决定是零容忍的，严重导致用户体验。下面就详细说明下此次Fix这个Crash问题的过程。</p>
+<h3 id="crash定位">Crash定位</h3>
+
+<p>首先Crash提示为EXC_BAD_ACCESS，看操作轨迹还以为我PopUtils工具类导致的，但是以前其他也有类似的返回，第一反应打断点单步调试。</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">+</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">popToRootViewControllerWithSelectedIndex</span><span class="p">:(</span><span class="n">NSInteger</span><span class="p">)</span><span class="nv">index</span> <span class="p">{</span>
+    <span class="n">UITabBarController</span> <span class="o">*</span><span class="n">tabVC</span> <span class="o">=</span> <span class="p">(</span><span class="n">UITabBarController</span> <span class="o">*</span><span class="p">)[</span><span class="n">AppDelegate</span> <span class="nf">sharedAppDelegate</span><span class="p">].</span><span class="n">window</span><span class="p">.</span><span class="n">rootViewController</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">index</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="o">&amp;&amp;</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">tabVC</span><span class="p">.</span><span class="n">viewControllers</span><span class="p">.</span><span class="n">count</span><span class="p">)</span> <span class="p">{</span>
+        <span class="p">[</span><span class="n">tabVC</span> <span class="nf">setSelectedIndex</span><span class="p">:</span><span class="n">index</span><span class="p">];</span>
+    <span class="p">}</span>
+    <span class="p">[</span><span class="n">PopUtils</span> <span class="nf">popToRootViewController</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">+</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">popToRootViewControllerAnimated</span><span class="p">:(</span><span class="n">BOOL</span><span class="p">)</span><span class="nv">animated</span> <span class="p">{</span>
+    <span class="n">UITabBarController</span> <span class="o">*</span><span class="n">tabVC</span> <span class="o">=</span> <span class="p">(</span><span class="n">UITabBarController</span> <span class="o">*</span><span class="p">)[</span><span class="n">AppDelegate</span> <span class="nf">sharedAppDelegate</span><span class="p">].</span><span class="n">window</span><span class="p">.</span><span class="n">rootViewController</span><span class="p">;</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">UINavigationController</span> <span class="o">*</span><span class="n">navVC</span> <span class="k">in</span> <span class="n">tabVC</span><span class="p">.</span><span class="n">viewControllers</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">navVC</span><span class="p">.</span><span class="n">viewControllers</span><span class="p">.</span><span class="n">count</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+            <span class="p">[</span><span class="n">navVC</span> <span class="nf">popToRootViewControllerAnimated</span><span class="p">:</span><span class="n">animated</span><span class="p">];</span>
+            <span class="p">[</span><span class="n">navVC</span> <span class="nf">setNavigationBarHidden</span><span class="p">:</span><span class="nb">NO</span> <span class="nf">animated</span><span class="p">:</span><span class="nb">NO</span><span class="p">];</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>发现并不是此处的问题，因为[UCYWebViewController viewDidAppear:NO]方法已经执行，购物车页面已经显示。</p>
+
+<blockquote>
+  <p>小技巧：之前在写光明都市菜园内存优化的文章中提到过的拦截器（囧，想针对这个拦截器写一篇文章，一直没来得及写），在拦截器中对Controller Life Cycle方法进行hook并进行Method Swizzling，在swizzling方法中做日志打印，可以很方便的查看所有Controller Life Cycle执行过程。</p>
+</blockquote>
+
+<p>第一步短点调试无果，Log日志输出又没有具体的内容可以查看，对于EXC_BAD_ACCESS看来还是要要启用僵尸对象来进行调试才行，按住option键，点击Xcode的Run按钮，打开如下界面，勾选 Enable Zombie Objects。</p>
+
+<p><img src="http://kunkun.qiniudn.com/QQ20160401-0@2x.png" alt="启用僵尸对象" /></p>
+
+<p>重新运行，按照之前的操作重新操作一遍，这次在log中便可以看到具体是什么原因到导致的问题。</p>
+
+<p><img src="http://kunkun.qiniudn.com/QQ20160401-1@2x.png" alt="Crash原因" /></p>
+
+<p>原来问题出现在视频播放器这里，但是让人费解的是，视频详情的Controller正常dealloc，Controller中的播放器容器FMGVideoPlayView也正常dealloc，怎么就出现FMGVideoPlayView retain呢？</p>
+
+<h3 id="fmgvideoplayview-exc_bad_access解决">FMGVideoPlayView EXC_BAD_ACCESS解决</h3>
+
+<p>仔细查看源码，在视频播放完成或者页面返回的时候，需要对Player进行清理处理，其中Player有Notification监听，KVO的Observer监听等。猜想，是不是因为FMGVideoPlayView在dealloc后，这些监听并没有移除导致的EXC_BAD_ACCESS。</p>
+
+<p>FMGVideoPlayView代码中写有removePlayer方法专门处理进行监听的移除，player的的释放等操作。</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">removePlayer</span> <span class="p">{</span>
+    <span class="p">[</span><span class="n">self</span> <span class="nf">removeObserverFromPlayerItem</span><span class="p">:</span><span class="n">self</span><span class="p">.</span><span class="n">player</span><span class="p">.</span><span class="n">currentItem</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">self</span> <span class="nf">removeNotification</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">self</span> <span class="nf">removeShowTimer</span><span class="p">];</span>
+
+    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">player</span> <span class="nf">pause</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">danmakuView</span> <span class="nf">pauseAnimation</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">player</span><span class="p">.</span><span class="n">currentItem</span> <span class="nf">cancelPendingSeeks</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">player</span><span class="p">.</span><span class="n">currentItem</span><span class="p">.</span><span class="n">asset</span> <span class="nf">cancelLoading</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">self</span> <span class="nf">removePlaybackTimeObserver</span><span class="p">];</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">currentItem</span> <span class="o">=</span> <span class="nb">nil</span><span class="p">;</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">player</span> <span class="o">=</span> <span class="nb">nil</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>所以尝试在FMGVideoPlayView的dealloc方法中进行removePlayer，重新运行。问题得到解决。</p>
+
+<h3 id="原因">原因</h3>
+
+<p>从上面的解决过程可以看出，在FMGVideoPlayView被dealloc的时候，其中注册的Notification和KVO均没有被正常remove掉，监听依然被注册着。</p>
+
+<p>所以问题来了：</p>
+
+<ul>
+  <li>
+    <p><strong>在ARC中我们需要移除KVO的observer吗？</strong></p>
+
+    <p>在Apple官方文档中介绍<a href="https://developer.apple.com/library/mac/documentation/Cocoa/Reference/Foundation/Protocols/NSKeyValueObserving_Protocol/index.html#//apple_ref/occ/instm/NSObject/removeObserver:forKeyPath:context:">removeObserver:forKeyPath:context:</a>的时候，其中有一段文字为：</p>
+
+    <blockquote>
+      <p>Be sure to invoke this method (or <code class="highlighter-rouge">removeObserver:forKeyPath:</code>) before any object specified in<code class="highlighter-rouge">addObserver:forKeyPath:options:context:</code> is deallocated.</p>
+    </blockquote>
+
+    <p>也就是说在我们dealloc对象之前必须要移除KVO的observer.</p>
+
+    <blockquote>
+      <p>Yes, ARC only relieves you from calling retain/release. You still have to call setDelegate:nil, and removeObservers.  In your dealloc method, you don’t need to call [super dealloc] it is taken care of for you by the runtime.</p>
+    </blockquote>
+
+    <p>在ARC模式下，在dealloc方法中需要removeObservers。</p>
+  </li>
+  <li>
+    <p><strong>ARC给一个对象添加了observe会导致循环引用吗？</strong></p>
+
+    <p><a href="http://stackoverflow.com/questions/8122976/objective-c-automatic-reference-counting-arc-and-key-value-observing">Objective-C Automatic Reference Counting (ARC) and Key-Value Observing</a></p>
+
+    <blockquote>
+      <p>You need to call <code class="highlighter-rouge">removeObserver</code>, ARC only automates retain counts. <code class="highlighter-rouge">removeObserver</code> does not impact the retain count</p>
+    </blockquote>
+
+    <p>ARC只会自动处理引用计数器，调用removeObserver并不会影响引用计数器。</p>
+  </li>
+  <li>
+    <p><strong>当要通知的对象已经nil了,这个通知会自动remove吗？</strong></p>
+
+    <p><a href="http://stackoverflow.com/questions/11544690/will-observers-automatically-removed-when-observers-become-nil">Will observers automatically removed when observers become nil?</a></p>
+
+    <blockquote>
+      <p>Observers are not removed automatically. From the NSNotificationCenter Class Reference:</p>
+
+      <p><strong>Important</strong>: The notification center does not retain its observers, therefore, you must ensure that you unregister observers (using removeObserver: or removeObserver:name:object:) before they are deallocated. (If you don’t, you will generate a runtime error if the center sends a message to a freed object.)</p>
+
+      <p>You should therefore call</p>
+
+      <div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[[</span><span class="n">NSNotificationCenter</span> <span class="nf">defaultCenter</span><span class="p">]</span> <span class="nf">removeObserver</span><span class="p">:</span><span class="n">self</span><span class="p">];</span>
+</code></pre></div>      </div>
+
+      <p>in your <code class="highlighter-rouge">dealloc</code> method if you are not 100% sure that the observer was not removed previously.</p>
+    </blockquote>
+
+    <p>观察者并不会自动移除，通知中心并不会retain observer，因此，你必须保证在dealloc之前进行removerObserve，前面也说过了。</p>
+  </li>
+</ul>
+
+<p><strong>最后附上Apple文档链接<a href="https://developer.apple.com/library/mac/documentation/Cocoa/Reference/Foundation/Protocols/NSKeyValueObserving_Protocol/index.html">NSKeyValueObserving</a>感觉很有必要进去仔细看下。</strong></p>
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

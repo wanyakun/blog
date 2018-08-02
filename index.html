@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>Test Page</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="section no-pad-bot" id="index-banner">
+  <div class="container"><br/><br/>
+    <h1 class="header center orange-text">编程、摄影、户外</h1>
+    <div class="row center">
+      <h5 class="header col s12 light">一个爱好编程、摄影和户外的中年大叔，喜欢Github、喜欢风光和人像摄影、喜欢户外的各种活动</h5>
+      <p>人生终极梦想：牵手旅行、和相爱的人浪一辈子.</p>
+    </div>
+    <div class="row center"><a class="btn-large waves-effect waves-light orange" id="download-button" href="http://aioser.com/">技术博客</a></div><br/><br/>
+  </div>
+</div>
+<div class="container">
+  <div class="section">
+    <!-- Icon Section-->
+    <div class="row">
+      <div class="col s12 m4">
+        <div class="icon-block">
+          <h2 class="center light-blue-text"><i class="material-icons">flash_on</i></h2>
+          <h5 class="center">编程</h5>
+          <p class="light">We did most of the heavy lifting for you to provide a default stylings that incorporate our custom components. Additionally, we refined animations and transitions to provide a smoother experience for developers.</p>
+        </div>
+      </div>
+      <div class="col s12 m4">
+        <div class="icon-block">
+          <h2 class="center light-blue-text"><i class="material-icons">group</i></h2>
+          <h5 class="center">摄影</h5>
+          <p class="light">By utilizing elements and principles of Material Design, we were able to create a framework that incorporates components and animations that provide more feedback to users. Additionally, a single underlying responsive system across all platforms allow for a more unified user experience.</p>
+        </div>
+      </div>
+      <div class="col s12 m4">
+        <div class="icon-block">
+          <h2 class="center light-blue-text"><i class="material-icons">settings</i></h2>
+          <h5 class="center">户外</h5>
+          <p class="light">We have provided detailed documentation as well as specific code examples to help new users get started. We are also always open to feedback and can answer any questions a user may have about Materialize.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="container" id="blog_roll">
+  <style>
+    #red_header {
+    	text-align: center;
+    	box-sizing: border-box;
+    	padding: 20px;
+    }
+  </style>
+  <h2 class="white-text light-blue lighten-1 z-depth-2" id="red_header">From the Blog</h2>
+  <div class="row">
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">2017年终总结</span>
+          <p><p>2017年已经过完，终于有时间写下总结，一直想写，却一直不知从何处下手。在2018年的第一天为整个去年画上一个句号吧。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/%E5%B9%B4%E7%BB%88%E6%80%BB%E7%BB%93/year-end-summary-of-2017">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">一张图理解RACSignal的Subscription过程</span>
+          <p><p>现在遇到很多朋友都在使用MVVM的开发方式，在iOS中使用MVVM的开发方式势必会用到ReactiveCocoa（RAC），而大部分人对其并不是很理解，而只停留在使用的层面，有些人能够说出RAC调用过程是先创建信号、然后订阅信号、然后发送信号。总的流程来讲是这个样的，但是看源码的话，里面细节还是蛮多的。下面分析一下RACSignal的Subscription过程。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/RACSignal-Subscription">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">iOS调度源</span>
+          <p><p>当和底层系统交互时，必须花费大量时间为任务做好准备。调用内核或者其他系统层需要切换上下文，这也是比在进程内部调用昂贵的原因。因此，许多系统库提供异步接口，允许您的代码提交请求到系统，且请求执行时继续做其他工作。GCD允许您使用块和调度队列提交请求并将结果返回到您的代码来建立这种行为。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios-dispatch-source">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">iOS调度队列</span>
+          <p><p>GCD调度队列是执行任务的强大工具。调度队列允许您相对于调度者异步或者同步的执行任意代码块。您能够使用调度队列来执行几乎所有在单独线程上执行的任务。调度队列的优点是它们比线程代码更简单且更高效。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/ios-dispatch-queue">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">iOS操作队列</span>
+          <p><p>Cocoa操作（operation）是一种面向对象的方式来封装您想要异步执行的工作。操作被设计用来和操作队列（operation queue）一起使用或者由他们自己使用。因为他们是基于Objective-C，操作常用于基于Cocoa的OS X和iOS应用程序。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/ios-operation-queue">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">iOS事件传递与响应者链</span>
+          <p><p>用户以多种方式操纵他们的iOS设备，例如触摸屏幕或摇动设备。 iOS会解释用户何时以及如何操作硬件并将此信息传递到您的应用程序。 您的应用程序以自然和直观的方式响应操作的次数越多，对用户而言越有吸引力的体验。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/ios-event-transfer-and-respose-chain">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">iOS手势识别器</span>
+          <p><p>手势识别器是附加到视图的对象，将低级别事件处理代码转换为更高级别的操作，它允许视图以控件执行的方式响应操作。 手势识别器解释触摸以确定它们是否对应于特定手势，诸如滑动，捏合或旋转，如果识别他们特定的手势，他们发送动作消息到目标对象。 目标对象通常是视图的控制器，它响应手势，如下图所示。 这种设计模式既强大又简单; 你可以动态确定视图响应的动作，你可以向视图添加手势识别器，而无需对视图进行子类化。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/gesture-recognizer">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">KVO实现原理</span>
+          <p><p><a href="https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/KeyValueObserving/KeyValueObserving.html">KVO</a>和Notification是Objective-C语言中<a href="https://zh.wikipedia.org/wiki/%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F">观察者模式</a>的两种实现机制。KVO指定一个被观察对象，当被观察对象某个属性发生改变时，观察对象会获得通知，你不需要给被观察的对象添加任何额外代码。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/kvo-principle-of-realization">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">KVC实现原理</span>
+          <p><p>KVC(Key-Value Coding)是Objective-C提供的一种利用字符串来间接访问对象属性的一种机制，它是通过访问器去访问对象属性的另一个可选方案。非正式协议NSKeyValueCoding对其接口进行了定义，NSObject中提供了接口的默认实现。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/kvc-principle-of-realization">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">GCD中的串行，并行，同步，异步</span>
+          <p><p>首先，串行并行针对的是队列，同步异步针对的是任务；如果觉得队列和任务不太好理解咱们可以打个比方，假设一个应用程序是一个工厂，那队列就是里面的流水线以及线上的工人，而流水线上的工人所要处理的产品就是所谓的任务。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/gcd-sync-async">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">iOS10适配远程推送</span>
+          <p><p>iOS10正式版发布之后，网上各种适配XCode8以及iOS10的文章满天飞。但对于iOS10适配远程推送的文章却不多。iOS10对于推送的修改还是非常大的，新增了UserNotifications Framework，今天就结合自己的项目，说一说实际适配的情况。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/ios10-push-notification">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">设置CollectionView的Cell间距</span>
+          <p><p>在使用CollectionView的时候，不复杂的情况下我们使用UICollectionViewFlowLayout来设置Cell直接的间距，主要有以下几个地方需要设置：</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/set-collectionview-cell-space">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">ReactiveCocoa中RACObserve实例变量</span>
+          <p><p>在使用ReactiveCocoa前，必须要了解RAC和内存管理，有关RAC内存管理，参考下面这篇文章：<a href="http://hparis.github.io/blog/2015/07/25/rache-nei-cun-guan-li/">RAC和内存管理</a> 其中就讲了RACObserve的内存管理过程，也可以直接看源码。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/reactivecocoa-racobserve">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">自定义返回根目录Crash</span>
+          <p><p>上个版本经过内存等方面的优化，在听云崩溃报告中已经成功将Crash率降低到8‰一下，看了下最新版本七日的Crash率在4.87‰，终于达到标准水平了。下面是听云崩溃率标准：</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/customer-pop-to-root-crash-md">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">NavigationBar不显示问题</span>
+          <p><p>本来今天想在自家app上购买莫斯利安，发现正常购买活动已经结束，价格恢复到以前了。但是我们有团购活动啊，一样也是很便宜的哦。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/%E4%BC%98%E5%8C%96/ios-navigation-bar-hidden">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">Notification KVO Observer Crash</span>
+          <p><h3 id="前言">前言</h3>
+<p>昨天看在<a href="https://report.tingyun.com/mobile/overview/mobile">听云</a>上的Crash记录，看到我们App中有和视频播放相关的Crash。昨天就点了几次发现从视频播放进入产品详情，并进行商品购物下单，最后从订单详情返回到购物车的时候App Crash。操作轨迹如下：</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/video-player-crash-fix">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">自己写简单CoreDataManager封装对CoreData操作</span>
+          <p><p>关于CoreData的介绍太多，网上一搜大把全是，这里不介绍CoreData，直接上代码，注释写的很详细，应该很容易理解，暂时现做简单的增删该查，后面有时间再做修改完善。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/simple-coredata-manager">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">ObjC的Block中使用weakSelf/strongSelf @weakify/@strongify</span>
+          <p><p>在<a href="/2016/ios-memory-optimize-two/">iOSApp内存优化（二）</a>这篇文章中解决block循环引用的时候曾经提到@weakify和@strongify，下面就仔细说下这块的内容。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/objc-weak-strong">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">iOSApp内存优化（四）</span>
+          <p><p>在当今的app中，几乎所有的app都需要进行图片缓存，而在电商App中，图片在线加载到处可见，首页产品展示、分类列表类别icon，产品列表产品缩略图，产品详情主图和图文详情等等等。。。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/ios-memory-optimize-four">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">iOSApp内存优化（三）</span>
+          <p><p>在iOSApp中经常使用的一个组件叫NSTimer，但是它又是非常容易导致内存泄露组件。我们可能在Controller、View和ViewModel中使用到它，比如：做banner的自动翻页、开机广告倒计时、商品整点抢购倒计时等等等……</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/ios-memory-optimize-three">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">iOSApp内存优化（二）</span>
+          <p><p>在我们的app的业务层中使用了MVVM架构，为了更好的实现MVVM，我们在CocoaPods中引入了<a href="https://github.com/CocoaPods/CocoaPods">ReactiveCocoa</a>， 这样就会大量使用Block，很多时候Block也的确比Delegate，Target-Action使用起来要方便，顺便再推荐个第三方类库<a href="https://github.com/zwaldowski/BlocksKit">BlocksKit</a>，但是在使用Block的时候最容易出现的问题就是循环引用，就循环引用的问题，循环引用危害非常大，controller中只要有循环引用出现，就controller就无法释放，导致app使用内存越来越大。</p>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/ios-memory-optimize-two">Read More</a></div>
+      </div>
+    </div>
+    <div class="col s12 m6">
+      <div class="card white">
+        <div class="card-content"><span class="card-title">iOSApp内存优化（一）</span>
+          <p><h2 id="前言">前言</h2>
+
+</p>
+        </div>
+        <div class="card-action"><a href="/ios/ios-memory-optimize">Read More</a></div>
+      </div>
+    </div>
+  </div>
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

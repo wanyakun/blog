@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>iOSApp内存优化（二）</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>iOSApp内存优化（二）</h1><p>在我们的app的业务层中使用了MVVM架构，为了更好的实现MVVM，我们在CocoaPods中引入了<a href="https://github.com/CocoaPods/CocoaPods">ReactiveCocoa</a>， 这样就会大量使用Block，很多时候Block也的确比Delegate，Target-Action使用起来要方便，顺便再推荐个第三方类库<a href="https://github.com/zwaldowski/BlocksKit">BlocksKit</a>，但是在使用Block的时候最容易出现的问题就是循环引用，就循环引用的问题，循环引用危害非常大，controller中只要有循环引用出现，就controller就无法释放，导致app使用内存越来越大。</p>
+
+<h2 id="循环引用出现的原因">循环引用出现的原因</h2>
+
+<ul>
+  <li>
+    <p>block循环引用，因为block 会 retain self，而 self 又 retain 了 Block。因为在 ObjC 中，直接调用一个实例变量，会被编译器处理成 self-&gt;theVar，self 是一个 strong 类型的变量，引用计数会加 1，于是，self retains queue， queue retains block，block retains self。</p>
+  </li>
+  <li>
+    <p>在controller中，controller拥有strong类型的subView，而有时候，subView中又要有属性来指定controller，这种情况情况出现的极少。我们在视频播放的时候遇到过。</p>
+  </li>
+</ul>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    <span class="c1">// 播放器显示位置（竖屏时）</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">playView</span><span class="p">.</span><span class="n">frame</span> <span class="o">=</span> <span class="n">CGRectMake</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="n">SCREEN_WIDTH</span><span class="p">,</span> <span class="n">SCREEN_WIDTH</span> <span class="o">*</span> <span class="mi">9</span> <span class="o">/</span> <span class="mi">16</span><span class="p">);</span>
+    <span class="c1">// 添加到当前控制器的view上</span>
+    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">view</span> <span class="nf">addSubview</span><span class="p">:</span><span class="n">self</span><span class="p">.</span><span class="n">playView</span><span class="p">];</span>
+    <span class="c1">// 指定一个作为播放的控制器</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">playView</span><span class="p">.</span><span class="n">contrainerViewController</span> <span class="o">=</span> <span class="n">self</span><span class="p">;</span>
+</code></pre></div></div>
+
+<p>这里contrainerViewController一不注意就出现了循环引用，导致controller无法释放。</p>
+<ul>
+  <li>在做Hybrid的时候，我们使用JavaScriptCore框架，并定义WebJSExport（继承自JSExport）协议来实现JavaScript调用Native方法。JavaScript要想调用Native方法，就要往document注入全局对象以供JavaScript调用。一开始写法如下：</li>
+  <li>
+    <div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">JSContext</span> <span class="o">*</span><span class="n">context</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">webView</span> <span class="nf">valueForKeyPath</span><span class="p">:</span><span class="s">@"documentView.webView.mainFrame.javaScriptContext"</span><span class="p">];</span>
+<span class="n">context</span><span class="p">[</span><span class="s">@"XXXX"</span><span class="p">]</span> <span class="o">=</span> <span class="n">self</span><span class="p">;</span>
+<span class="n">context</span><span class="p">.</span><span class="n">exceptionHandler</span> <span class="o">=</span> <span class="o">^</span><span class="p">(</span><span class="n">JSContext</span> <span class="o">*</span><span class="n">context</span><span class="p">,</span> <span class="n">JSValue</span> <span class="o">*</span><span class="n">exception</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">DLog</span><span class="p">(</span><span class="s">@"JS Error: %@"</span><span class="p">,</span> <span class="n">exception</span><span class="p">);</span>
+<span class="p">};</span>
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<p>细心的同学就会发现在第二句形成了循环引用的问题。然而网上所有讲到JS和OC通信的文章基本上都是这么写的，却很少有人指出这里有循环引用的问题，真是害人不浅，也怪自己粗心，不注意。</p>
+
+<h2 id="检查循环引用">检查循环引用</h2>
+
+<p>根据iOS内存管理机制的基本原理：当某个对象的引用计数器为0时，它就会自动调用dealloc方法。所以在检查页面是否有循环引用的时候，只需要看controller的dealloc方法是否会被执行就可以了。当controller pop出去后，如果每调用controller的dealloc方法，说明它的某个属性对象仍然被持有，未被释放。controller页面需要加入以下方法：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">dealloc</span> <span class="p">{</span>
+    <span class="n">DLog</span><span class="p">(</span><span class="s">@"[%@ dealloc]"</span><span class="p">,</span> <span class="p">[</span><span class="n">self</span> <span class="nf">class</span><span class="p">]);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="解决办法">解决办法</h2>
+
+<ul>
+  <li>对于block的循环引用，ReactiveCoca提供了一对宏代码，<strong>@weakify</strong>和<strong>@strongify</strong>，所以在使用到block的地方按照以下方法使用即可避免循环引用：
+<strong>此处使用dispatch来举例不是太合适，GCD中使用Block不会出现循环引用, 原因是GCD中的block并没有直接或间接被self强引用的，所以不会存在循环引用，故不需要weakSelf；又GCD中block能够自动copy，所以self超出作用域仍可用，故不需要写strongSelf</strong></li>
+</ul>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="err">@weakify</span><span class="p">(</span><span class="n">self</span><span class="p">);</span>  
+<span class="n">dispatch_async</span><span class="p">(</span><span class="n">dispatch_get_global_queue</span><span class="p">(</span><span class="n">DISPATCH_QUEUE_PRIORITY_DEFAULT</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="o">^</span><span class="p">{</span>
+	<span class="err">@strongify</span><span class="p">(</span><span class="n">self</span><span class="p">);</span>
+	<span class="p">[</span><span class="n">self</span> <span class="nf">doSomething</span><span class="p">];</span>
+	<span class="p">[</span><span class="n">self</span> <span class="nf">doOtherThing</span><span class="p">];</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>对于<strong>@weakify</strong>和<strong>@strongify</strong>这里两个宏代码的原理，回头会专门写一篇文章来介绍。</p>
+<ul>
+  <li>对于第二个我们在视频播放中遇到的循环引用的问题，其实非常容易解决，只需要将<strong>contrainerViewController</strong> 在property声明的时候设置成<strong>weak</strong>类型的就可以了。</li>
+  <li>在Hybrid的中给JavaScript设置注入对象时出现循环引用，一开始我想用weakSelf，发现并不能解决，因为在我们注入到JavaScript中的对象在JavaScript中可以认为是一个strong类型的对象，所以即便是使用weakSelf也不能解决这个问题。要解决这个问题，需要我们自己定义<strong>WeakWebJSExportDelegate</strong></li>
+</ul>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#import &lt;Foundation/Foundation.h&gt;
+#import "WebJSExport.h"
+</span>
+<span class="k">@interface</span> <span class="nc">WeakWebJSExportDelegate</span> <span class="p">:</span> <span class="nc">NSObject</span><span class="o">&lt;</span><span class="n">WebJSExport</span><span class="o">&gt;</span>
+
+<span class="k">@property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">weak</span><span class="p">)</span> <span class="n">id</span><span class="o">&lt;</span><span class="n">WebJSExport</span><span class="o">&gt;</span> <span class="n">webJSExportDelegate</span><span class="p">;</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="n">instancetype</span><span class="p">)</span><span class="nf">initWithDelegate</span><span class="p">:(</span><span class="n">id</span><span class="o">&lt;</span><span class="n">WebJSExport</span><span class="o">&gt;</span><span class="p">)</span><span class="nv">webJSExportDelegate</span><span class="p">;</span>
+
+<span class="k">@end</span>
+</code></pre></div></div>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#import "WeakWebJSExportDelegate.h"
+</span>
+<span class="k">@implementation</span> <span class="nc">WeakWebJSExportDelegate</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="n">instancetype</span><span class="p">)</span><span class="nf">initWithDelegate</span><span class="p">:(</span><span class="n">id</span><span class="o">&lt;</span><span class="n">WebJSExport</span><span class="o">&gt;</span><span class="p">)</span><span class="nv">webJSExportDelegate</span> <span class="p">{</span>
+    <span class="n">self</span> <span class="o">=</span> <span class="p">[</span><span class="n">super</span> <span class="nf">init</span><span class="p">];</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">_webJSExportDelegate</span> <span class="o">=</span> <span class="n">webJSExportDelegate</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">self</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="cp">#pragma mark - WebJSExport
+</span><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">appOpenUrl</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">openJson</span> <span class="p">{</span>
+    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">webJSExportDelegate</span> <span class="nf">appOpenUrl</span><span class="p">:</span><span class="n">openJson</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>然后需要将向webView注入全局对象的部分改为一下形式：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">JSContext</span> <span class="o">*</span><span class="n">context</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">webView</span> <span class="nf">valueForKeyPath</span><span class="p">:</span><span class="s">@"documentView.webView.mainFrame.javaScriptContext"</span><span class="p">];</span>
+<span class="n">WeakWebJSExportDelegate</span> <span class="o">*</span><span class="n">weakWebJSExportDelegate</span> <span class="o">=</span> <span class="p">[[</span><span class="n">WeakWebJSExportDelegate</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithDelegate</span><span class="p">:</span><span class="n">self</span><span class="p">];</span>
+<span class="n">context</span><span class="p">[</span><span class="s">@"XXXX"</span><span class="p">]</span> <span class="o">=</span> <span class="n">weakWebJSExportDelegate</span><span class="p">;</span>
+<span class="n">context</span><span class="p">.</span><span class="n">exceptionHandler</span> <span class="o">=</span> <span class="o">^</span><span class="p">(</span><span class="n">JSContext</span> <span class="o">*</span><span class="n">context</span><span class="p">,</span> <span class="n">JSValue</span> <span class="o">*</span><span class="n">exception</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">DLog</span><span class="p">(</span><span class="s">@"JS Error: %@"</span><span class="p">,</span> <span class="n">exception</span><span class="p">);</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

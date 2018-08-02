@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>设置CollectionView的Cell间距</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>设置CollectionView的Cell间距</h1><p>在使用CollectionView的时候，不复杂的情况下我们使用UICollectionViewFlowLayout来设置Cell直接的间距，主要有以下几个地方需要设置：</p>
+
+<ul>
+  <li>minimumLineSpacing：设置Cell行之间的<strong>最小</strong>间距</li>
+  <li>minimumInteritemSpacing：设置Cell之间的<strong>最小</strong>间距</li>
+  <li>itemSize：设置Cell的大小</li>
+  <li>estimatedItemSize：和TableView类似，设置预估Cell大小，iOS8以后支持，默认CGSizeZero</li>
+  <li>sectionInset：设置section之间的空间</li>
+</ul>
+
+<p>以上几个属性是常见的设置，Cell和section比较规则的话，可以直接设置属性，若不规则，则也可以使用Delegate方法设置。</p>
+
+<p>但是在很多情况下，我们会发现Cell之间仍然有一个不知道怎么产生的间距。如下图所示在吃货团和果U鲜直接有一条竖线，而果U鲜和登录直接就没有，而我们想实现的是Cell之间的间距为0，这里itemSize的width设置为ScreeWidth/4.0f，minimumInteritemSpacing设置为0。</p>
+
+<p><img src="http://kunkun.qiniudn.com/collectionView-01.jpg" alt="有间距" /></p>
+
+<p>首先我们使用view hierarchy来看看Cell的位置和大小如下图。</p>
+
+<p><img src="http://kunkun.qiniudn.com/collectionView-03.jpg" alt="Cell位置" /></p>
+
+<p><img src="http://kunkun.qiniudn.com/collectionView-04.jpg" alt="Cell位置" /></p>
+
+<p>从两张图的Position X可以看出两个Cell的位置，因为Anchor Poin x是0.5，所以显示的是图片中间的位置，第一个Cell的为51.75，第二个Cell的为155.4166666666666667，两者的间距为103.6666666666666667，而Cell的宽度为103.5，也就是说间距比宽度大了0.1666666666666667，所以出现了间隙。</p>
+
+<p>下面我们通过代码打印Cell的frame来看一下。</p>
+
+<p>自定义一个UICollectionViewLayout继承自UICollectionViewFlowLayout，然后在-layoutAttributesForElementsInrect:方法打印这些Cell的frame信息，</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="n">NSArray</span><span class="o">&lt;</span><span class="n">UICollectionViewLayoutAttributes</span> <span class="o">*&gt;</span> <span class="o">*</span><span class="p">)</span><span class="nf">layoutAttributesForElementsInRect</span><span class="p">:(</span><span class="n">CGRect</span><span class="p">)</span><span class="nv">rect</span> <span class="p">{</span>
+    <span class="n">NSArray</span> <span class="o">*</span><span class="n">original</span> <span class="o">=</span> <span class="p">[</span><span class="n">super</span> <span class="nf">layoutAttributesForElementsInRect</span><span class="p">:</span><span class="n">rect</span><span class="p">];</span>
+    <span class="n">NSMutableArray</span> <span class="o">*</span><span class="n">attributes</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NSMutableArray</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithArray</span><span class="p">:</span><span class="n">original</span> <span class="nf">copyItems</span><span class="p">:</span><span class="nb">YES</span><span class="p">];</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">UICollectionViewLayoutAttributes</span> <span class="o">*</span><span class="n">attr</span> <span class="k">in</span> <span class="n">attributes</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">DLog</span><span class="p">(</span><span class="s">@"%@"</span><span class="p">,</span> <span class="n">NSStringFromCGRect</span><span class="p">([</span><span class="n">attr</span> <span class="nf">frame</span><span class="p">]));</span>
+    <span class="p">}</span>
+    <span class="k">return</span>  <span class="n">attributes</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+2016-08-12 14:22:58.164 UCaiYuan[2402:1350991] <span class="o">[</span>-[HomeCollectionViewFlowLayout layoutAttributesForElementsInRect:] Line:16 <span class="o">=====&gt;{{</span>0, 204.33333333333334<span class="o">}</span>, <span class="o">{</span>103.5, 99.359999999999999<span class="o">}}]</span>
+2016-08-12 14:22:58.164 UCaiYuan[2402:1350991] <span class="o">[</span>-[HomeCollectionViewFlowLayout layoutAttributesForElementsInRect:] Line:16 <span class="o">=====&gt;{{</span>103.66666666666667, 204.33333333333334<span class="o">}</span>, <span class="o">{</span>103.5, 99.359999999999999<span class="o">}}]</span>
+2016-08-12 14:22:58.164 UCaiYuan[2402:1350991] <span class="o">[</span>-[HomeCollectionViewFlowLayout layoutAttributesForElementsInRect:] Line:16 <span class="o">=====&gt;{{</span>207, 204.33333333333334<span class="o">}</span>, <span class="o">{</span>103.5, 99.359999999999999<span class="o">}}]</span>
+2016-08-12 14:22:58.164 UCaiYuan[2402:1350991] <span class="o">[</span>-[HomeCollectionViewFlowLayout layoutAttributesForElementsInRect:] Line:16 <span class="o">=====&gt;{{</span>310.66666666666669, 204.33333333333334<span class="o">}</span>, <span class="o">{</span>103.5, 99.359999999999999<span class="o">}}]</span>
+2016-08-12 14:22:58.164 UCaiYuan[2402:1350991] <span class="o">[</span>-[HomeCollectionViewFlowLayout layoutAttributesForElementsInRect:] Line:16 <span class="o">=====&gt;{{</span>0, 303.66666666666669<span class="o">}</span>, <span class="o">{</span>103.5, 99.359999999999999<span class="o">}}]</span>
+2016-08-12 14:22:58.164 UCaiYuan[2402:1350991] <span class="o">[</span>-[HomeCollectionViewFlowLayout layoutAttributesForElementsInRect:] Line:16 <span class="o">=====&gt;{{</span>103.66666666666667, 303.66666666666669<span class="o">}</span>, <span class="o">{</span>103.5, 99.359999999999999<span class="o">}}]</span>
+
+</code></pre></div></div>
+
+<p>可以看出itemSize为{103.5， 99.359999999999999}，第一个Cell的x为0，第二个Cell的x为103.66666666666667，而不是103.5，所以中间有0.16666666666667的间隙。</p>
+
+<p>通过上面的打印，也验证了我们使用view hierarchy看到的结果。至于为什么会出现这些间隙，目前还不得而知。</p>
+
+<p>细心的朋友可能在前面发现，对于minimumLineSpacing和minimumInteritemSpacing的解释中我讲最小来加粗，其实从名字也可以看得出来。这个属性只是设置间距的最小值。而实际使用的过程中我们需要设置的是一个确定的值，即便是区间，也要设置个maxmumInteritemSpacing吧。要解决这个问题，我们可以在上面提到的方法layoutAttributesForElementsInRect中修改Cell的frame来改变</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="n">NSArray</span><span class="o">&lt;</span><span class="n">UICollectionViewLayoutAttributes</span> <span class="o">*&gt;</span> <span class="o">*</span><span class="p">)</span><span class="nf">layoutAttributesForElementsInRect</span><span class="p">:(</span><span class="n">CGRect</span><span class="p">)</span><span class="nv">rect</span> <span class="p">{</span>
+    <span class="n">NSArray</span> <span class="o">*</span><span class="n">original</span> <span class="o">=</span> <span class="p">[</span><span class="n">super</span> <span class="nf">layoutAttributesForElementsInRect</span><span class="p">:</span><span class="n">rect</span><span class="p">];</span>
+    <span class="n">NSMutableArray</span> <span class="o">*</span><span class="n">attributes</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NSMutableArray</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithArray</span><span class="p">:</span><span class="n">original</span> <span class="nf">copyItems</span><span class="p">:</span><span class="nb">YES</span><span class="p">];</span>
+    <span class="c1">//从第二个循环到最后一个,因为第一个不需要修改</span>
+    <span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="p">[</span><span class="n">attributes</span> <span class="nf">count</span><span class="p">];</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">//当前attributes</span>
+        <span class="n">UICollectionViewLayoutAttributes</span> <span class="o">*</span><span class="n">currentLayoutAttributes</span> <span class="o">=</span> <span class="n">attributes</span><span class="p">[</span><span class="nf">i</span><span class="p">];</span>
+        <span class="c1">//上一个attributes</span>
+        <span class="n">UICollectionViewLayoutAttributes</span> <span class="o">*</span><span class="n">prevLayoutAttributes</span> <span class="o">=</span> <span class="n">attributes</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">];</span>
+        <span class="c1">//设置的Cell间距，可根据需要改</span>
+        <span class="n">NSInteger</span> <span class="n">cellSpacing</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="c1">//前一个cell的最右边</span>
+        <span class="n">NSInteger</span> <span class="n">prevCellRight</span> <span class="o">=</span> <span class="n">CGRectGetMaxX</span><span class="p">(</span><span class="n">prevLayoutAttributes</span><span class="p">.</span><span class="n">frame</span><span class="p">);</span>
+        <span class="c1">//如果当前一个cell的最右边加上我们想要的间距加上当前cell的宽度依然在contentSize中，我们改变当前cell的原点位置</span>
+        <span class="c1">//不加这个判断的后果是，UICollectionView只显示一行，原因是下面所有cell的x值都被加到第一行最后一个元素的后面了</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">prevCellRight</span> <span class="o">+</span> <span class="n">cellSpacing</span> <span class="o">+</span> <span class="n">currentLayoutAttributes</span><span class="p">.</span><span class="n">frame</span><span class="p">.</span><span class="n">size</span><span class="p">.</span><span class="n">width</span> <span class="o">&lt;</span> <span class="n">self</span><span class="p">.</span><span class="n">collectionViewContentSize</span><span class="p">.</span><span class="n">width</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">CGRect</span> <span class="n">frame</span> <span class="o">=</span> <span class="n">currentLayoutAttributes</span><span class="p">.</span><span class="n">frame</span><span class="p">;</span>
+            <span class="n">frame</span><span class="p">.</span><span class="n">origin</span><span class="p">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">prevCellRight</span> <span class="o">+</span> <span class="n">cellSpacing</span><span class="p">;</span>
+            <span class="n">currentLayoutAttributes</span><span class="p">.</span><span class="n">frame</span> <span class="o">=</span> <span class="n">frame</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span>  <span class="n">attributes</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>再次运行，解决间隙问题，效果如下：</p>
+
+<p><img src="http://kunkun.qiniudn.com/collectionView-02.jpg" alt="最终效果" /></p>
+
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

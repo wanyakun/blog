@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>自己写简单CoreDataManager封装对CoreData操作</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>自己写简单CoreDataManager封装对CoreData操作</h1><p>关于CoreData的介绍太多，网上一搜大把全是，这里不介绍CoreData，直接上代码，注释写的很详细，应该很容易理解，暂时现做简单的增删该查，后面有时间再做修改完善。</p>
+
+<p><strong>CoreDataManager.h</strong></p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">//</span>
+<span class="c1">//  CoreDataManager.h</span>
+<span class="c1">//</span>
+<span class="c1">//  Created by wanyakun on 16/1/6.</span>
+<span class="c1">//  Copyright © 2016年 me.wanyakun. All rights reserved.</span>
+<span class="c1">//</span>
+
+<span class="cp">#import &lt;Foundation/Foundation.h&gt;
+</span>
+<span class="k">@interface</span> <span class="nc">CoreDataManager</span> <span class="p">:</span> <span class="nc">NSObject</span>
+
+<span class="k">+</span><span class="p">(</span><span class="n">CoreDataManager</span> <span class="o">*</span><span class="p">)</span><span class="n">defaultManager</span><span class="p">;</span>
+
+<span class="cm">/**
+ *  插入单条数据到Entity
+ *
+ *  @param entity 实体字典
+ *  @param name   Entity名称
+ */</span>
+<span class="k">-</span> <span class="p">(</span><span class="n">BOOL</span><span class="p">)</span><span class="nf">insertCoreDataWithEntity</span><span class="p">:(</span><span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="nv">entity</span> <span class="nf">name</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">name</span><span class="p">;</span>
+
+<span class="cm">/**
+ *  根据查询条件从实体中查询数据
+ *
+ *  @param entityName Entity名称
+ *  @param predicate  查询条件
+ *
+ *  @return 字典数组
+ */</span>
+<span class="k">-</span> <span class="p">(</span><span class="n">NSMutableArray</span> <span class="o">*</span><span class="p">)</span><span class="nf">selectCoreDataFromName</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">name</span> <span class="nf">predicate</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">predicate</span><span class="p">;</span>
+
+<span class="cm">/**
+ *  更新单条数据到Entity
+ *
+ *  @param entity    更新内容
+ *  @param name      Entity名字
+ *  @param predicate 更新条件
+ *
+ *  @return 是否更新成功
+ */</span>
+<span class="k">-</span> <span class="p">(</span><span class="n">BOOL</span><span class="p">)</span><span class="nf">updateCoreDataWithEntity</span><span class="p">:(</span><span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="nv">entity</span> <span class="nf">name</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">name</span> <span class="nf">predicate</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">predicate</span><span class="p">;</span>
+
+<span class="cm">/**
+ *  从Entity中删除数据
+ *
+ *  @param entity    更新内容
+ *  @param name      Entity名字
+ *  @param predicate 更新条件
+ *
+ *  @return 是否删除成功
+ */</span>
+<span class="k">-</span> <span class="p">(</span><span class="n">BOOL</span><span class="p">)</span><span class="nf">deleteCoreDataWithName</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">name</span> <span class="nf">predicate</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">predicate</span><span class="p">;</span>
+
+<span class="k">@end</span>
+</code></pre></div></div>
+
+<p><strong>CoreDataManager.m</strong></p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">//</span>
+<span class="c1">//  CoreDataManager.m</span>
+<span class="c1">//</span>
+<span class="c1">//  Created by wanyakun on 16/1/6.</span>
+<span class="c1">//  Copyright © 2016年 me.wanyakun. All rights reserved.</span>
+<span class="c1">//</span>
+
+<span class="cp">#import "CoreDataManager.h"
+</span>
+<span class="k">@interface</span> <span class="nc">CoreDataManager</span> <span class="p">()</span>
+<span class="cm">/**
+ *  负责应用和数据直接的交互CRUD
+ */</span>
+<span class="k">@property</span> <span class="p">(</span><span class="n">strong</span><span class="p">,</span> <span class="n">nonatomic</span><span class="p">)</span> <span class="n">NSManagedObjectContext</span> <span class="o">*</span><span class="n">managedObjectContext</span><span class="p">;</span>
+<span class="cm">/**
+ *  添加持久化存储库（比如SQLite数据库）
+ */</span>
+<span class="k">@property</span> <span class="p">(</span><span class="n">strong</span><span class="p">,</span> <span class="n">nonatomic</span><span class="p">)</span> <span class="n">NSPersistentStoreCoordinator</span> <span class="o">*</span><span class="n">persistentStoreCoordinator</span><span class="p">;</span>
+<span class="cm">/**
+ *  代表CoreData模型文件
+ */</span>
+<span class="k">@property</span> <span class="p">(</span><span class="n">strong</span><span class="p">,</span> <span class="n">nonatomic</span><span class="p">)</span> <span class="n">NSManagedObjectModel</span> <span class="o">*</span><span class="n">managedObjectModel</span><span class="p">;</span>
+<span class="k">@end</span>
+
+<span class="k">@implementation</span> <span class="nc">CoreDataManager</span>
+
+<span class="cp">#pragma mark - 单例
+</span><span class="k">+</span><span class="p">(</span><span class="n">CoreDataManager</span> <span class="o">*</span><span class="p">)</span><span class="n">defaultManager</span> <span class="p">{</span>
+    <span class="k">static</span> <span class="n">dispatch_once_t</span> <span class="n">predicate</span><span class="p">;</span>
+    <span class="k">static</span> <span class="n">CoreDataManager</span> <span class="o">*</span> <span class="n">defaultManager</span><span class="p">;</span>
+    <span class="n">dispatch_once</span><span class="p">(</span><span class="o">&amp;</span><span class="n">predicate</span><span class="p">,</span> <span class="o">^</span><span class="p">{</span>
+        <span class="n">defaultManager</span><span class="o">=</span><span class="p">[[</span><span class="n">CoreDataManager</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">init</span><span class="p">];</span>
+    <span class="p">});</span>
+    <span class="k">return</span> <span class="n">defaultManager</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="cp">#pragma mark - public method
+</span><span class="cm">/**
+ *  插入单条数据到Entity
+ *
+ *  @param entity 实体字典
+ *  @param name   Entity名称
+ */</span>
+<span class="o">-</span> <span class="p">(</span><span class="n">BOOL</span><span class="p">)</span><span class="n">insertCoreDataWithEntity</span><span class="o">:</span><span class="p">(</span><span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="n">entity</span> <span class="n">name</span><span class="o">:</span><span class="p">(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="n">name</span>
+<span class="p">{</span>
+    <span class="n">NSManagedObject</span> <span class="o">*</span><span class="n">object</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSEntityDescription</span> <span class="nf">insertNewObjectForEntityForName</span><span class="p">:</span><span class="n">name</span> <span class="nf">inManagedObjectContext</span><span class="p">:</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">object</span> <span class="nf">setValuesForKeysWithDictionary</span><span class="p">:</span><span class="n">entity</span><span class="p">];</span>
+    <span class="c1">// 利用上下文对象，将数据同步到持久化存储库</span>
+    <span class="n">NSError</span> <span class="o">*</span><span class="n">error</span> <span class="o">=</span> <span class="nb">nil</span><span class="p">;</span>
+    <span class="n">BOOL</span> <span class="n">success</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span> <span class="nf">save</span><span class="p">:</span><span class="o">&amp;</span><span class="n">error</span><span class="p">];</span>
+    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">success</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">NSLog</span><span class="p">(</span><span class="s">@"保存数据到数据库错误：%@"</span><span class="p">,[</span><span class="n">error</span> <span class="nf">localizedDescription</span><span class="p">]);</span>
+        <span class="k">return</span> <span class="nb">NO</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nb">YES</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="cm">/**
+ *  根据查询条件从实体中查询数据
+ *
+ *  @param entityName Entity名称
+ *  @param predicate  查询条件
+ *
+ *  @return 字典数组
+ */</span>
+<span class="o">-</span> <span class="p">(</span><span class="n">NSMutableArray</span> <span class="o">*</span><span class="p">)</span><span class="n">selectCoreDataFromName</span><span class="o">:</span><span class="p">(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="n">name</span> <span class="n">predicate</span><span class="o">:</span><span class="p">(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="n">predicate</span>
+<span class="p">{</span>
+    <span class="n">NSFetchRequest</span> <span class="o">*</span><span class="n">request</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NSFetchRequest</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">init</span><span class="p">];</span>
+    
+    <span class="n">NSEntityDescription</span> <span class="o">*</span><span class="n">entity</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSEntityDescription</span> <span class="nf">entityForName</span><span class="p">:</span><span class="n">name</span> <span class="nf">inManagedObjectContext</span><span class="p">:</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span><span class="p">];</span>
+    <span class="n">request</span><span class="p">.</span><span class="n">entity</span> <span class="o">=</span> <span class="n">entity</span><span class="p">;</span>
+    
+    <span class="k">if</span> <span class="p">(</span><span class="n">predicate</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">NSPredicate</span> <span class="o">*</span><span class="n">predicateObject</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSPredicate</span> <span class="nf">predicateWithFormat</span><span class="p">:</span><span class="n">predicate</span><span class="p">];</span>
+        <span class="n">request</span><span class="p">.</span><span class="n">predicate</span> <span class="o">=</span> <span class="n">predicateObject</span><span class="p">;</span>
+    <span class="p">}</span>
+    
+    <span class="n">NSError</span> <span class="o">*</span><span class="n">error</span><span class="p">;</span>
+    <span class="n">NSArray</span> <span class="o">*</span><span class="n">fetchedObjects</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span> <span class="nf">executeFetchRequest</span><span class="p">:</span><span class="n">request</span> <span class="nf">error</span><span class="p">:</span><span class="o">&amp;</span><span class="n">error</span><span class="p">];</span>
+    <span class="n">NSMutableArray</span> <span class="o">*</span><span class="n">resultArray</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSMutableArray</span> <span class="nf">array</span><span class="p">];</span>
+    
+    <span class="k">for</span> <span class="p">(</span><span class="n">NSManagedObject</span> <span class="o">*</span><span class="n">object</span> <span class="k">in</span> <span class="n">fetchedObjects</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">NSMutableDictionary</span> <span class="o">*</span><span class="n">dict</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSMutableDictionary</span> <span class="nf">dictionary</span><span class="p">];</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">NSPropertyDescription</span> <span class="o">*</span><span class="n">property</span> <span class="k">in</span> <span class="n">entity</span><span class="p">.</span><span class="n">properties</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">NSString</span> <span class="o">*</span><span class="n">key</span> <span class="o">=</span> <span class="n">property</span><span class="p">.</span><span class="n">name</span><span class="p">;</span>
+            <span class="n">id</span> <span class="n">value</span> <span class="o">=</span> <span class="p">[</span><span class="n">object</span> <span class="nf">valueForKey</span><span class="p">:</span><span class="n">key</span><span class="p">];</span>
+            <span class="p">[</span><span class="n">dict</span> <span class="nf">setValue</span><span class="p">:</span><span class="n">value</span> <span class="nf">forKey</span><span class="p">:</span><span class="n">key</span><span class="p">];</span>
+        <span class="p">}</span>
+        <span class="p">[</span><span class="n">resultArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">dict</span><span class="p">];</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">resultArray</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="cm">/**
+ *  更新单条数据到Entity
+ *
+ *  @param entity    更新内容
+ *  @param name      Entity名字
+ *  @param predicate 更新条件
+ *
+ *  @return 是否更新成功
+ */</span>
+<span class="o">-</span> <span class="p">(</span><span class="n">BOOL</span><span class="p">)</span><span class="n">updateCoreDataWithEntity</span><span class="o">:</span><span class="p">(</span><span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="n">entity</span> <span class="n">name</span><span class="o">:</span><span class="p">(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="n">name</span> <span class="n">predicate</span><span class="o">:</span><span class="p">(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="n">predicate</span>
+<span class="p">{</span>
+    <span class="n">NSFetchRequest</span> <span class="o">*</span><span class="n">request</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NSFetchRequest</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">init</span><span class="p">];</span>
+    
+    <span class="n">NSEntityDescription</span> <span class="o">*</span><span class="n">entityDescription</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSEntityDescription</span> <span class="nf">entityForName</span><span class="p">:</span><span class="n">name</span> <span class="nf">inManagedObjectContext</span><span class="p">:</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span><span class="p">];</span>
+    <span class="n">request</span><span class="p">.</span><span class="n">entity</span> <span class="o">=</span> <span class="n">entityDescription</span><span class="p">;</span>
+    
+    <span class="k">if</span> <span class="p">(</span><span class="n">predicate</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">NSPredicate</span> <span class="o">*</span><span class="n">predicateObject</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSPredicate</span> <span class="nf">predicateWithFormat</span><span class="p">:</span><span class="n">predicate</span><span class="p">];</span>
+        <span class="n">request</span><span class="p">.</span><span class="n">predicate</span> <span class="o">=</span> <span class="n">predicateObject</span><span class="p">;</span>
+    <span class="p">}</span>
+    
+    <span class="n">NSError</span> <span class="o">*</span><span class="n">error</span><span class="p">;</span>
+    <span class="n">NSArray</span> <span class="o">*</span><span class="n">fetchedObjects</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span> <span class="nf">executeFetchRequest</span><span class="p">:</span><span class="n">request</span> <span class="nf">error</span><span class="p">:</span><span class="o">&amp;</span><span class="n">error</span><span class="p">];</span>
+    
+    <span class="k">for</span> <span class="p">(</span><span class="n">NSManagedObject</span> <span class="o">*</span><span class="n">object</span> <span class="k">in</span> <span class="n">fetchedObjects</span><span class="p">)</span> <span class="p">{</span>
+        <span class="p">[</span><span class="n">object</span> <span class="nf">setValuesForKeysWithDictionary</span><span class="p">:</span><span class="n">entity</span><span class="p">];</span>
+    <span class="p">}</span>
+    
+    <span class="n">BOOL</span> <span class="n">success</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span> <span class="nf">save</span><span class="p">:</span><span class="o">&amp;</span><span class="n">error</span><span class="p">];</span>
+    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">success</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">NSLog</span><span class="p">(</span><span class="s">@"更新数据到数据库错误：%@"</span><span class="p">,[</span><span class="n">error</span> <span class="nf">localizedDescription</span><span class="p">]);</span>
+        <span class="k">return</span> <span class="nb">NO</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nb">YES</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="cm">/**
+ *  从Entity中删除数据
+ *
+ *  @param entity    更新内容
+ *  @param name      Entity名字
+ *  @param predicate 更新条件
+ *
+ *  @return 是否删除成功
+ */</span>
+<span class="o">-</span> <span class="p">(</span><span class="n">BOOL</span><span class="p">)</span><span class="n">deleteCoreDataWithName</span><span class="o">:</span><span class="p">(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="n">name</span> <span class="n">predicate</span><span class="o">:</span><span class="p">(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="n">predicate</span>
+<span class="p">{</span>
+    <span class="n">NSFetchRequest</span> <span class="o">*</span><span class="n">request</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NSFetchRequest</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">init</span><span class="p">];</span>
+    
+    <span class="n">NSEntityDescription</span> <span class="o">*</span><span class="n">entityDescription</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSEntityDescription</span> <span class="nf">entityForName</span><span class="p">:</span><span class="n">name</span> <span class="nf">inManagedObjectContext</span><span class="p">:</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span><span class="p">];</span>
+    <span class="n">request</span><span class="p">.</span><span class="n">entity</span> <span class="o">=</span> <span class="n">entityDescription</span><span class="p">;</span>
+    
+    <span class="k">if</span> <span class="p">(</span><span class="n">predicate</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">NSPredicate</span> <span class="o">*</span><span class="n">predicateObject</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSPredicate</span> <span class="nf">predicateWithFormat</span><span class="p">:</span><span class="n">predicate</span><span class="p">];</span>
+        <span class="n">request</span><span class="p">.</span><span class="n">predicate</span> <span class="o">=</span> <span class="n">predicateObject</span><span class="p">;</span>
+    <span class="p">}</span>
+    
+    <span class="n">NSError</span> <span class="o">*</span><span class="n">error</span><span class="p">;</span>
+    <span class="n">NSArray</span> <span class="o">*</span><span class="n">fetchedObjects</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span> <span class="nf">executeFetchRequest</span><span class="p">:</span><span class="n">request</span> <span class="nf">error</span><span class="p">:</span><span class="o">&amp;</span><span class="n">error</span><span class="p">];</span>
+    
+    <span class="k">for</span> <span class="p">(</span><span class="n">NSManagedObject</span> <span class="o">*</span><span class="n">object</span> <span class="k">in</span> <span class="n">fetchedObjects</span><span class="p">)</span> <span class="p">{</span>
+        <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span> <span class="nf">deleteObject</span><span class="p">:</span><span class="n">object</span><span class="p">];</span>
+    <span class="p">}</span>
+
+    <span class="n">BOOL</span> <span class="n">success</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectContext</span> <span class="nf">save</span><span class="p">:</span><span class="o">&amp;</span><span class="n">error</span><span class="p">];</span>
+    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">success</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">NSLog</span><span class="p">(</span><span class="s">@"删除数据出错：error:%@"</span><span class="p">,</span><span class="n">error</span><span class="p">);</span>
+        <span class="k">return</span> <span class="nb">NO</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nb">YES</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="cp">#pragma mark - private method
+</span><span class="c1">//获取Documents路径</span>
+<span class="o">-</span> <span class="p">(</span><span class="n">NSURL</span> <span class="o">*</span><span class="p">)</span><span class="n">applicationDocumentsDirectory</span>
+<span class="p">{</span>
+    <span class="k">return</span> <span class="p">[[[</span><span class="n">NSFileManager</span> <span class="nf">defaultManager</span><span class="p">]</span> <span class="nf">URLsForDirectory</span><span class="p">:</span><span class="n">NSDocumentDirectory</span> <span class="nf">inDomains</span><span class="p">:</span><span class="nf">NSUserDomainMask</span><span class="p">]</span> <span class="n">lastObject</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="o">-</span> <span class="p">(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="n">bundleName</span>
+<span class="p">{</span>
+    <span class="k">return</span> <span class="p">[[[</span><span class="n">NSBundle</span> <span class="nf">mainBundle</span><span class="p">]</span> <span class="nf">infoDictionary</span><span class="p">]</span> <span class="nf">objectForKey</span><span class="p">:</span><span class="s">@"CFBundleName"</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="cp">#pragma mark - getter setter
+</span><span class="o">-</span> <span class="p">(</span><span class="n">NSManagedObjectContext</span> <span class="o">*</span><span class="p">)</span><span class="n">managedObjectContext</span>
+<span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">_managedObjectContext</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">_managedObjectContext</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NSManagedObjectContext</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">init</span><span class="p">];</span>
+        <span class="n">_managedObjectContext</span><span class="p">.</span><span class="n">persistentStoreCoordinator</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span> <span class="nf">persistentStoreCoordinator</span><span class="p">];</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">_managedObjectContext</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="o">-</span> <span class="p">(</span><span class="n">NSPersistentStoreCoordinator</span> <span class="o">*</span><span class="p">)</span><span class="n">persistentStoreCoordinator</span>
+<span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">_persistentStoreCoordinator</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">_persistentStoreCoordinator</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NSPersistentStoreCoordinator</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithManagedObjectModel</span><span class="p">:</span><span class="n">self</span><span class="p">.</span><span class="n">managedObjectModel</span><span class="p">];</span>
+        
+        <span class="n">NSURL</span> <span class="o">*</span><span class="n">storeURL</span> <span class="o">=</span> <span class="p">[[</span><span class="n">self</span> <span class="nf">applicationDocumentsDirectory</span><span class="p">]</span> <span class="nf">URLByAppendingPathComponent</span><span class="p">:[</span><span class="n">self</span> <span class="nf">bundleName</span><span class="p">]];</span>
+        <span class="n">NSError</span> <span class="o">*</span><span class="n">error</span> <span class="o">=</span> <span class="nb">nil</span><span class="p">;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="p">[</span><span class="n">_persistentStoreCoordinator</span> <span class="nf">addPersistentStoreWithType</span><span class="p">:</span><span class="n">NSSQLiteStoreType</span> <span class="nf">configuration</span><span class="p">:</span><span class="nb">nil</span> <span class="n">URL</span><span class="o">:</span><span class="n">storeURL</span> <span class="n">options</span><span class="o">:</span><span class="nb">nil</span> <span class="n">error</span><span class="o">:&amp;</span><span class="n">error</span><span class="p">])</span> <span class="p">{</span>
+            <span class="n">NSLog</span><span class="p">(</span><span class="s">@"Unresolved error %@, %@"</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="p">[</span><span class="n">error</span> <span class="nf">userInfo</span><span class="p">]);</span>
+            <span class="n">abort</span><span class="p">();</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">_persistentStoreCoordinator</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="o">-</span> <span class="p">(</span><span class="n">NSManagedObjectModel</span> <span class="o">*</span><span class="p">)</span><span class="n">managedObjectModel</span>
+<span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">_managedObjectModel</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">_managedObjectModel</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSManagedObjectModel</span> <span class="nf">mergedModelFromBundles</span><span class="p">:</span><span class="nb">nil</span><span class="p">];</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">_managedObjectModel</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">@end</span>
+</code></pre></div></div>
+
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

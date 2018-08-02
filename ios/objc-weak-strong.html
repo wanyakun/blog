@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>ObjC的Block中使用weakSelf/strongSelf @weakify/@strongify</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>ObjC的Block中使用weakSelf/strongSelf @weakify/@strongify</h1><p>在<a href="/2016/ios-memory-optimize-two/">iOSApp内存优化（二）</a>这篇文章中解决block循环引用的时候曾经提到@weakify和@strongify，下面就仔细说下这块的内容。</p>
+
+<p>首先要说说什么时候使用weakSelf和strongSelf。
+下面引用一篇博客<a href="http://blog.lessfun.com/blog/2014/11/22/when-should-use-weakself-and-strongself-in-objc-block/">《到底什么时候才需要在ObjC的Block中使用weakSelf/strongSelf》</a>的内容:</p>
+<blockquote>
+  <p>Objective C 的 Block 是一个很实用的语法，特别是与GCD结合使用，可以很方便地实现并发、异步任务。但是，如果使用不当，Block 也会引起一些循环引用问题(retain cycle)—— Block 会 retain ‘self’，而 ‘self‘ 又 retain 了 Block。因为在 ObjC 中，直接调用一个实例变量，会被编译器处理成 ‘self-&gt;theVar’，’self’ 是一个 strong 类型的变量，引用计数会加 1，于是，self retains queue， queue retains block，block retains self。</p>
+</blockquote>
+
+<h3 id="解决-retain-circle">解决 retain circle</h3>
+
+<p>Apple 官方的建议是，传进 Block 之前，把 ‘self’ 转换成 weak automatic 的变量，这样在 Block 中就不会出现对 self 的强引用。如果在 Block 执行完成之前，self 被释放了，weakSelf 也会变为 nil。 示例代码：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">__weak</span> <span class="n">__typeof__</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="n">weakSelf</span> <span class="o">=</span> <span class="n">self</span><span class="p">;</span>
+	<span class="n">dispatch_async</span><span class="p">(</span><span class="n">dispatch_get_global_queue</span><span class="p">(</span><span class="n">DISPATCH_QUEUE_PRIORITY_DEFAULT</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="o">^</span><span class="p">{</span>
+		<span class="p">[</span><span class="n">weakSelf</span> <span class="nf">doSomething</span><span class="p">];</span>
+	<span class="p">});</span>
+</code></pre></div></div>
+
+<p>clang 的文档表示，在 doSomething 内，weakSelf 不会被释放。但，下面的情况除外：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">__weak</span> <span class="n">__typeof__</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="n">weakSelf</span> <span class="o">=</span> <span class="n">self</span><span class="p">;</span>
+    <span class="n">dispatch_async</span><span class="p">(</span><span class="n">dispatch_get_global_queue</span><span class="p">(</span><span class="n">DISPATCH_QUEUE_PRIORITY_DEFAULT</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="o">^</span><span class="p">{</span>
+    <span class="p">[</span><span class="n">weakSelf</span> <span class="nf">doSomething</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">weakSelf</span> <span class="nf">doOtherThing</span><span class="p">];</span>
+ <span class="p">});</span>
+</code></pre></div></div>
+
+<p>在 doSomething 中，weakSelf 不会变成 nil，不过在 doSomething 执行完成，调用第二个方法 doOtherThing 的时候，weakSelf 有可能被释放，于是，strongSelf 就派上用场了：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">__weak</span> <span class="n">__typeof__</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="n">weakSelf</span> <span class="o">=</span> <span class="n">self</span><span class="p">;</span>
+    <span class="n">dispatch_async</span><span class="p">(</span><span class="n">dispatch_get_global_queue</span><span class="p">(</span><span class="n">DISPATCH_QUEUE_PRIORITY_DEFAULT</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="o">^</span><span class="p">{</span>
+    <span class="n">__strong</span> <span class="n">__typeof</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="n">strongSelf</span> <span class="o">=</span> <span class="n">weakSelf</span><span class="p">;</span>
+    <span class="p">[</span><span class="n">strongSelf</span> <span class="nf">doSomething</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">strongSelf</span> <span class="nf">doOtherThing</span><span class="p">];</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>__strong 确保在 Block 内，strongSelf 不会被释放。</p>
+
+<h3 id="总结">总结</h3>
+<ul>
+  <li>在 Block 内如果需要访问 self 的方法、变量，建议使用 weakSelf。</li>
+  <li>如果在 Block 内需要多次 访问 self，则需要使用 strongSelf。</li>
+</ul>
+
+<hr />
+
+<p>以上内容知道了我们为什么要用weakSelf和strongSelf， 为了简单实用一般会定义成宏weakify和strongify，如下：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#ifndef    weakify
+#if __has_feature(objc_arc)
+</span>
+<span class="cp">#define weakify( x ) \
+_Pragma("clang diagnostic push") \
+_Pragma("clang diagnostic ignored \"-Wshadow\"") \
+autoreleasepool{} __weak __typeof__(x) __weak_##x##__ = x; \
+_Pragma("clang diagnostic pop")
+</span>
+<span class="cp">#else
+</span>
+<span class="cp">#define weakify( x ) \
+_Pragma("clang diagnostic push") \
+_Pragma("clang diagnostic ignored \"-Wshadow\"") \
+autoreleasepool{} __block __typeof__(x) __block_##x##__ = x; \
+_Pragma("clang diagnostic pop")
+</span>
+<span class="cp">#endif
+#endif
+</span>
+<span class="cp">#ifndef    strongify
+#if __has_feature(objc_arc)
+</span>
+<span class="cp">#define strongify( x ) \
+_Pragma("clang diagnostic push") \
+_Pragma("clang diagnostic ignored \"-Wshadow\"") \
+try{} @finally{} __typeof__(x) x = __weak_##x##__; \
+_Pragma("clang diagnostic pop")
+</span>
+<span class="cp">#else
+</span>
+<span class="cp">#define strongify( x ) \
+_Pragma("clang diagnostic push") \
+_Pragma("clang diagnostic ignored \"-Wshadow\"") \
+try{} @finally{} __typeof__(x) x = __block_##x##__; \
+_Pragma("clang diagnostic pop")
+</span>
+<span class="cp">#endif
+#endif
+</span></code></pre></div></div>
+
+<p>我们曾经说过ReactiveCoca中已经定义了两个宏@weakify和@strongify，可以直接用，属于比较牛逼的写法。这两个宏一定成对出现，先@weakify再@strongify.可以很好的管理Block内部对self的引用。可以一步步点开发现其实使用到了C语言中的组合运算符。</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="err">@weakify</span><span class="p">(</span><span class="n">self</span><span class="p">);</span>  
+<span class="n">dispatch_async</span><span class="p">(</span><span class="n">dispatch_get_global_queue</span><span class="p">(</span><span class="n">DISPATCH_QUEUE_PRIORITY_DEFAULT</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="o">^</span><span class="p">{</span>
+    <span class="err">@strongify</span><span class="p">(</span><span class="n">self</span><span class="p">);</span>
+    <span class="p">[</span><span class="n">self</span> <span class="nf">doSomething</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">self</span> <span class="nf">doOtherThing</span><span class="p">];</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>我已经将其单独提取出来，这样在不使用ReactiveCoca的项目中也能够直接使用这两个宏，如下：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#if DEBUG
+#define rac_keywordify autoreleasepool {}
+#else
+#define rac_keywordify try {} @catch (...) {}
+#endif
+</span>
+<span class="cp">#define rac_weakify_(INDEX, CONTEXT, VAR) \
+CONTEXT __typeof__(VAR) metamacro_concat(VAR, _weak_) = (VAR);
+</span>
+<span class="cp">#define rac_strongify_(INDEX, VAR) \
+__strong __typeof__(VAR) VAR = metamacro_concat(VAR, _weak_);
+</span>
+<span class="cp">#define weakify(...) \
+rac_keywordify \
+metamacro_foreach_cxt(rac_weakify_,, __weak, __VA_ARGS__)
+</span>
+<span class="cp">#define strongify(...) \
+rac_keywordify \
+_Pragma("clang diagnostic push") \
+_Pragma("clang diagnostic ignored \"-Wshadow\"") \
+metamacro_foreach(rac_strongify_,, __VA_ARGS__) \
+_Pragma("clang diagnostic pop")
+</span>
+
+<span class="cm">/**
+ * Executes one or more expressions (which may have a void type, such as a call
+ * to a function that returns no value) and always returns true.
+ */</span>
+<span class="cp">#define metamacro_exprify(...) \
+((__VA_ARGS__), true)
+</span>
+<span class="cm">/**
+ * Returns a string representation of VALUE after full macro expansion.
+ */</span>
+<span class="cp">#define metamacro_stringify(VALUE) \
+metamacro_stringify_(VALUE)
+</span>
+<span class="cm">/**
+ * Returns A and B concatenated after full macro expansion.
+ */</span>
+<span class="cp">#define metamacro_concat(A, B) \
+metamacro_concat_(A, B)
+</span>
+<span class="cm">/**
+ * Returns the Nth variadic argument (starting from zero). At least
+ * N + 1 variadic arguments must be given. N must be between zero and twenty,
+ * inclusive.
+ */</span>
+<span class="cp">#define metamacro_at(N, ...) \
+metamacro_concat(metamacro_at, N)(__VA_ARGS__)
+</span>
+<span class="cm">/**
+ * Returns the number of arguments (up to twenty) provided to the macro. At
+ * least one argument must be provided.
+ *
+ * Inspired by P99: http://p99.gforge.inria.fr
+ */</span>
+<span class="cp">#define metamacro_argcount(...) \
+metamacro_at(20, __VA_ARGS__, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1)
+</span>
+<span class="cm">/**
+ * Identical to #metamacro_foreach_cxt, except that no CONTEXT argument is
+ * given. Only the index and current argument will thus be passed to MACRO.
+ */</span>
+<span class="cp">#define metamacro_foreach(MACRO, SEP, ...) \
+metamacro_foreach_cxt(metamacro_foreach_iter, SEP, MACRO, __VA_ARGS__)
+</span>
+<span class="cm">/**
+ * For each consecutive variadic argument (up to twenty), MACRO is passed the
+ * zero-based index of the current argument, CONTEXT, and then the argument
+ * itself. The results of adjoining invocations of MACRO are then separated by
+ * SEP.
+ *
+ * Inspired by P99: http://p99.gforge.inria.fr
+ */</span>
+<span class="cp">#define metamacro_foreach_cxt(MACRO, SEP, CONTEXT, ...) \
+metamacro_concat(metamacro_foreach_cxt, metamacro_argcount(__VA_ARGS__))(MACRO, SEP, CONTEXT, __VA_ARGS__)
+</span>
+<span class="cm">/**
+ * Identical to #metamacro_foreach_cxt. This can be used when the former would
+ * fail due to recursive macro expansion.
+ */</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive(MACRO, SEP, CONTEXT, ...) \
+metamacro_concat(metamacro_foreach_cxt_recursive, metamacro_argcount(__VA_ARGS__))(MACRO, SEP, CONTEXT, __VA_ARGS__)
+</span>
+<span class="cm">/**
+ * In consecutive order, appends each variadic argument (up to twenty) onto
+ * BASE. The resulting concatenations are then separated by SEP.
+ *
+ * This is primarily useful to manipulate a list of macro invocations into instead
+ * invoking a different, possibly related macro.
+ */</span>
+<span class="cp">#define metamacro_foreach_concat(BASE, SEP, ...) \
+metamacro_foreach_cxt(metamacro_foreach_concat_iter, SEP, BASE, __VA_ARGS__)
+</span>
+<span class="cm">/**
+ * Iterates COUNT times, each time invoking MACRO with the current index
+ * (starting at zero) and CONTEXT. The results of adjoining invocations of MACRO
+ * are then separated by SEP.
+ *
+ * COUNT must be an integer between zero and twenty, inclusive.
+ */</span>
+<span class="cp">#define metamacro_for_cxt(COUNT, MACRO, SEP, CONTEXT) \
+metamacro_concat(metamacro_for_cxt, COUNT)(MACRO, SEP, CONTEXT)
+</span>
+<span class="cm">/**
+ * Returns the first argument given. At least one argument must be provided.
+ *
+ * This is useful when implementing a variadic macro, where you may have only
+ * one variadic argument, but no way to retrieve it (for example, because \c ...
+ * always needs to match at least one argument).
+ *
+ * @code
+ 
+ #define varmacro(...) \
+ metamacro_head(__VA_ARGS__)
+ 
+ * @endcode
+ */</span>
+<span class="cp">#define metamacro_head(...) \
+metamacro_head_(__VA_ARGS__, 0)
+</span>
+<span class="cm">/**
+ * Returns every argument except the first. At least two arguments must be
+ * provided.
+ */</span>
+<span class="cp">#define metamacro_tail(...) \
+metamacro_tail_(__VA_ARGS__)
+</span>
+<span class="cm">/**
+ * Returns the first N (up to twenty) variadic arguments as a new argument list.
+ * At least N variadic arguments must be provided.
+ */</span>
+<span class="cp">#define metamacro_take(N, ...) \
+metamacro_concat(metamacro_take, N)(__VA_ARGS__)
+</span>
+<span class="cm">/**
+ * Removes the first N (up to twenty) variadic arguments from the given argument
+ * list. At least N variadic arguments must be provided.
+ */</span>
+<span class="cp">#define metamacro_drop(N, ...) \
+metamacro_concat(metamacro_drop, N)(__VA_ARGS__)
+</span>
+<span class="cm">/**
+ * Decrements VAL, which must be a number between zero and twenty, inclusive.
+ *
+ * This is primarily useful when dealing with indexes and counts in
+ * metaprogramming.
+ */</span>
+<span class="cp">#define metamacro_dec(VAL) \
+metamacro_at(VAL, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
+</span>
+<span class="cm">/**
+ * Increments VAL, which must be a number between zero and twenty, inclusive.
+ *
+ * This is primarily useful when dealing with indexes and counts in
+ * metaprogramming.
+ */</span>
+<span class="cp">#define metamacro_inc(VAL) \
+metamacro_at(VAL, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21)
+</span>
+<span class="cm">/**
+ * If A is equal to B, the next argument list is expanded; otherwise, the
+ * argument list after that is expanded. A and B must be numbers between zero
+ * and twenty, inclusive. Additionally, B must be greater than or equal to A.
+ *
+ * @code
+ 
+ // expands to true
+ metamacro_if_eq(0, 0)(true)(false)
+ 
+ // expands to false
+ metamacro_if_eq(0, 1)(true)(false)
+ 
+ * @endcode
+ *
+ * This is primarily useful when dealing with indexes and counts in
+ * metaprogramming.
+ */</span>
+<span class="cp">#define metamacro_if_eq(A, B) \
+metamacro_concat(metamacro_if_eq, A)(B)
+</span>
+<span class="cm">/**
+ * Identical to #metamacro_if_eq. This can be used when the former would fail
+ * due to recursive macro expansion.
+ */</span>
+<span class="cp">#define metamacro_if_eq_recursive(A, B) \
+metamacro_concat(metamacro_if_eq_recursive, A)(B)
+</span>
+<span class="cm">/**
+ * Returns 1 if N is an even number, or 0 otherwise. N must be between zero and
+ * twenty, inclusive.
+ *
+ * For the purposes of this test, zero is considered even.
+ */</span>
+<span class="cp">#define metamacro_is_even(N) \
+metamacro_at(N, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1)
+</span>
+<span class="cm">/**
+ * Returns the logical NOT of B, which must be the number zero or one.
+ */</span>
+<span class="cp">#define metamacro_not(B) \
+metamacro_at(B, 1, 0)
+</span>
+<span class="c1">// IMPLEMENTATION DETAILS FOLLOW!</span>
+<span class="c1">// Do not write code that depends on anything below this line.</span>
+<span class="cp">#define metamacro_stringify_(VALUE) # VALUE
+#define metamacro_concat_(A, B) A ## B
+#define metamacro_foreach_iter(INDEX, MACRO, ARG) MACRO(INDEX, ARG)
+#define metamacro_head_(FIRST, ...) FIRST
+#define metamacro_tail_(FIRST, ...) __VA_ARGS__
+#define metamacro_consume_(...)
+#define metamacro_expand_(...) __VA_ARGS__
+</span>
+<span class="c1">// implemented from scratch so that metamacro_concat() doesn't end up nesting</span>
+<span class="cp">#define metamacro_foreach_concat_iter(INDEX, BASE, ARG) metamacro_foreach_concat_iter_(BASE, ARG)
+#define metamacro_foreach_concat_iter_(BASE, ARG) BASE ## ARG
+</span>
+<span class="c1">// metamacro_at expansions</span>
+<span class="cp">#define metamacro_at0(...) metamacro_head(__VA_ARGS__)
+#define metamacro_at1(_0, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at2(_0, _1, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at3(_0, _1, _2, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at4(_0, _1, _2, _3, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at5(_0, _1, _2, _3, _4, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at6(_0, _1, _2, _3, _4, _5, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at7(_0, _1, _2, _3, _4, _5, _6, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at8(_0, _1, _2, _3, _4, _5, _6, _7, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at9(_0, _1, _2, _3, _4, _5, _6, _7, _8, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at10(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at11(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at12(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at13(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at14(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at15(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at16(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at17(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at18(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at19(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, ...) metamacro_head(__VA_ARGS__)
+#define metamacro_at20(_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, ...) metamacro_head(__VA_ARGS__)
+</span>
+<span class="c1">// metamacro_foreach_cxt expansions</span>
+<span class="cp">#define metamacro_foreach_cxt0(MACRO, SEP, CONTEXT)
+#define metamacro_foreach_cxt1(MACRO, SEP, CONTEXT, _0) MACRO(0, CONTEXT, _0)
+</span>
+<span class="cp">#define metamacro_foreach_cxt2(MACRO, SEP, CONTEXT, _0, _1) \
+metamacro_foreach_cxt1(MACRO, SEP, CONTEXT, _0) \
+SEP \
+MACRO(1, CONTEXT, _1)
+</span>
+<span class="cp">#define metamacro_foreach_cxt3(MACRO, SEP, CONTEXT, _0, _1, _2) \
+metamacro_foreach_cxt2(MACRO, SEP, CONTEXT, _0, _1) \
+SEP \
+MACRO(2, CONTEXT, _2)
+</span>
+<span class="cp">#define metamacro_foreach_cxt4(MACRO, SEP, CONTEXT, _0, _1, _2, _3) \
+metamacro_foreach_cxt3(MACRO, SEP, CONTEXT, _0, _1, _2) \
+SEP \
+MACRO(3, CONTEXT, _3)
+</span>
+<span class="cp">#define metamacro_foreach_cxt5(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4) \
+metamacro_foreach_cxt4(MACRO, SEP, CONTEXT, _0, _1, _2, _3) \
+SEP \
+MACRO(4, CONTEXT, _4)
+</span>
+<span class="cp">#define metamacro_foreach_cxt6(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5) \
+metamacro_foreach_cxt5(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4) \
+SEP \
+MACRO(5, CONTEXT, _5)
+</span>
+<span class="cp">#define metamacro_foreach_cxt7(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6) \
+metamacro_foreach_cxt6(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5) \
+SEP \
+MACRO(6, CONTEXT, _6)
+</span>
+<span class="cp">#define metamacro_foreach_cxt8(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7) \
+metamacro_foreach_cxt7(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6) \
+SEP \
+MACRO(7, CONTEXT, _7)
+</span>
+<span class="cp">#define metamacro_foreach_cxt9(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8) \
+metamacro_foreach_cxt8(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7) \
+SEP \
+MACRO(8, CONTEXT, _8)
+</span>
+<span class="cp">#define metamacro_foreach_cxt10(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9) \
+metamacro_foreach_cxt9(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8) \
+SEP \
+MACRO(9, CONTEXT, _9)
+</span>
+<span class="cp">#define metamacro_foreach_cxt11(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10) \
+metamacro_foreach_cxt10(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9) \
+SEP \
+MACRO(10, CONTEXT, _10)
+</span>
+<span class="cp">#define metamacro_foreach_cxt12(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11) \
+metamacro_foreach_cxt11(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10) \
+SEP \
+MACRO(11, CONTEXT, _11)
+</span>
+<span class="cp">#define metamacro_foreach_cxt13(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12) \
+metamacro_foreach_cxt12(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11) \
+SEP \
+MACRO(12, CONTEXT, _12)
+</span>
+<span class="cp">#define metamacro_foreach_cxt14(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13) \
+metamacro_foreach_cxt13(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12) \
+SEP \
+MACRO(13, CONTEXT, _13)
+</span>
+<span class="cp">#define metamacro_foreach_cxt15(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14) \
+metamacro_foreach_cxt14(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13) \
+SEP \
+MACRO(14, CONTEXT, _14)
+</span>
+<span class="cp">#define metamacro_foreach_cxt16(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15) \
+metamacro_foreach_cxt15(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14) \
+SEP \
+MACRO(15, CONTEXT, _15)
+</span>
+<span class="cp">#define metamacro_foreach_cxt17(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16) \
+metamacro_foreach_cxt16(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15) \
+SEP \
+MACRO(16, CONTEXT, _16)
+</span>
+<span class="cp">#define metamacro_foreach_cxt18(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17) \
+metamacro_foreach_cxt17(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16) \
+SEP \
+MACRO(17, CONTEXT, _17)
+</span>
+<span class="cp">#define metamacro_foreach_cxt19(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18) \
+metamacro_foreach_cxt18(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17) \
+SEP \
+MACRO(18, CONTEXT, _18)
+</span>
+<span class="cp">#define metamacro_foreach_cxt20(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19) \
+metamacro_foreach_cxt19(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18) \
+SEP \
+MACRO(19, CONTEXT, _19)
+</span>
+<span class="c1">// metamacro_foreach_cxt_recursive expansions</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive0(MACRO, SEP, CONTEXT)
+#define metamacro_foreach_cxt_recursive1(MACRO, SEP, CONTEXT, _0) MACRO(0, CONTEXT, _0)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive2(MACRO, SEP, CONTEXT, _0, _1) \
+metamacro_foreach_cxt_recursive1(MACRO, SEP, CONTEXT, _0) \
+SEP \
+MACRO(1, CONTEXT, _1)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive3(MACRO, SEP, CONTEXT, _0, _1, _2) \
+metamacro_foreach_cxt_recursive2(MACRO, SEP, CONTEXT, _0, _1) \
+SEP \
+MACRO(2, CONTEXT, _2)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive4(MACRO, SEP, CONTEXT, _0, _1, _2, _3) \
+metamacro_foreach_cxt_recursive3(MACRO, SEP, CONTEXT, _0, _1, _2) \
+SEP \
+MACRO(3, CONTEXT, _3)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive5(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4) \
+metamacro_foreach_cxt_recursive4(MACRO, SEP, CONTEXT, _0, _1, _2, _3) \
+SEP \
+MACRO(4, CONTEXT, _4)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive6(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5) \
+metamacro_foreach_cxt_recursive5(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4) \
+SEP \
+MACRO(5, CONTEXT, _5)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive7(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6) \
+metamacro_foreach_cxt_recursive6(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5) \
+SEP \
+MACRO(6, CONTEXT, _6)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive8(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7) \
+metamacro_foreach_cxt_recursive7(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6) \
+SEP \
+MACRO(7, CONTEXT, _7)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive9(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8) \
+metamacro_foreach_cxt_recursive8(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7) \
+SEP \
+MACRO(8, CONTEXT, _8)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive10(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9) \
+metamacro_foreach_cxt_recursive9(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8) \
+SEP \
+MACRO(9, CONTEXT, _9)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive11(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10) \
+metamacro_foreach_cxt_recursive10(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9) \
+SEP \
+MACRO(10, CONTEXT, _10)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive12(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11) \
+metamacro_foreach_cxt_recursive11(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10) \
+SEP \
+MACRO(11, CONTEXT, _11)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive13(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12) \
+metamacro_foreach_cxt_recursive12(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11) \
+SEP \
+MACRO(12, CONTEXT, _12)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive14(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13) \
+metamacro_foreach_cxt_recursive13(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12) \
+SEP \
+MACRO(13, CONTEXT, _13)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive15(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14) \
+metamacro_foreach_cxt_recursive14(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13) \
+SEP \
+MACRO(14, CONTEXT, _14)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive16(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15) \
+metamacro_foreach_cxt_recursive15(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14) \
+SEP \
+MACRO(15, CONTEXT, _15)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive17(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16) \
+metamacro_foreach_cxt_recursive16(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15) \
+SEP \
+MACRO(16, CONTEXT, _16)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive18(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17) \
+metamacro_foreach_cxt_recursive17(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16) \
+SEP \
+MACRO(17, CONTEXT, _17)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive19(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18) \
+metamacro_foreach_cxt_recursive18(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17) \
+SEP \
+MACRO(18, CONTEXT, _18)
+</span>
+<span class="cp">#define metamacro_foreach_cxt_recursive20(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19) \
+metamacro_foreach_cxt_recursive19(MACRO, SEP, CONTEXT, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18) \
+SEP \
+MACRO(19, CONTEXT, _19)
+</span>
+<span class="c1">// metamacro_for_cxt expansions</span>
+<span class="cp">#define metamacro_for_cxt0(MACRO, SEP, CONTEXT)
+#define metamacro_for_cxt1(MACRO, SEP, CONTEXT) MACRO(0, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt2(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt1(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(1, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt3(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt2(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(2, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt4(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt3(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(3, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt5(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt4(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(4, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt6(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt5(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(5, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt7(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt6(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(6, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt8(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt7(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(7, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt9(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt8(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(8, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt10(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt9(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(9, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt11(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt10(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(10, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt12(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt11(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(11, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt13(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt12(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(12, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt14(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt13(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(13, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt15(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt14(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(14, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt16(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt15(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(15, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt17(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt16(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(16, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt18(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt17(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(17, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt19(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt18(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(18, CONTEXT)
+</span>
+<span class="cp">#define metamacro_for_cxt20(MACRO, SEP, CONTEXT) \
+metamacro_for_cxt19(MACRO, SEP, CONTEXT) \
+SEP \
+MACRO(19, CONTEXT)
+</span>
+<span class="c1">// metamacro_if_eq expansions</span>
+<span class="cp">#define metamacro_if_eq0(VALUE) \
+metamacro_concat(metamacro_if_eq0_, VALUE)
+</span>
+<span class="cp">#define metamacro_if_eq0_0(...) __VA_ARGS__ metamacro_consume_
+#define metamacro_if_eq0_1(...) metamacro_expand_
+#define metamacro_if_eq0_2(...) metamacro_expand_
+#define metamacro_if_eq0_3(...) metamacro_expand_
+#define metamacro_if_eq0_4(...) metamacro_expand_
+#define metamacro_if_eq0_5(...) metamacro_expand_
+#define metamacro_if_eq0_6(...) metamacro_expand_
+#define metamacro_if_eq0_7(...) metamacro_expand_
+#define metamacro_if_eq0_8(...) metamacro_expand_
+#define metamacro_if_eq0_9(...) metamacro_expand_
+#define metamacro_if_eq0_10(...) metamacro_expand_
+#define metamacro_if_eq0_11(...) metamacro_expand_
+#define metamacro_if_eq0_12(...) metamacro_expand_
+#define metamacro_if_eq0_13(...) metamacro_expand_
+#define metamacro_if_eq0_14(...) metamacro_expand_
+#define metamacro_if_eq0_15(...) metamacro_expand_
+#define metamacro_if_eq0_16(...) metamacro_expand_
+#define metamacro_if_eq0_17(...) metamacro_expand_
+#define metamacro_if_eq0_18(...) metamacro_expand_
+#define metamacro_if_eq0_19(...) metamacro_expand_
+#define metamacro_if_eq0_20(...) metamacro_expand_
+</span>
+<span class="cp">#define metamacro_if_eq1(VALUE) metamacro_if_eq0(metamacro_dec(VALUE))
+#define metamacro_if_eq2(VALUE) metamacro_if_eq1(metamacro_dec(VALUE))
+#define metamacro_if_eq3(VALUE) metamacro_if_eq2(metamacro_dec(VALUE))
+#define metamacro_if_eq4(VALUE) metamacro_if_eq3(metamacro_dec(VALUE))
+#define metamacro_if_eq5(VALUE) metamacro_if_eq4(metamacro_dec(VALUE))
+#define metamacro_if_eq6(VALUE) metamacro_if_eq5(metamacro_dec(VALUE))
+#define metamacro_if_eq7(VALUE) metamacro_if_eq6(metamacro_dec(VALUE))
+#define metamacro_if_eq8(VALUE) metamacro_if_eq7(metamacro_dec(VALUE))
+#define metamacro_if_eq9(VALUE) metamacro_if_eq8(metamacro_dec(VALUE))
+#define metamacro_if_eq10(VALUE) metamacro_if_eq9(metamacro_dec(VALUE))
+#define metamacro_if_eq11(VALUE) metamacro_if_eq10(metamacro_dec(VALUE))
+#define metamacro_if_eq12(VALUE) metamacro_if_eq11(metamacro_dec(VALUE))
+#define metamacro_if_eq13(VALUE) metamacro_if_eq12(metamacro_dec(VALUE))
+#define metamacro_if_eq14(VALUE) metamacro_if_eq13(metamacro_dec(VALUE))
+#define metamacro_if_eq15(VALUE) metamacro_if_eq14(metamacro_dec(VALUE))
+#define metamacro_if_eq16(VALUE) metamacro_if_eq15(metamacro_dec(VALUE))
+#define metamacro_if_eq17(VALUE) metamacro_if_eq16(metamacro_dec(VALUE))
+#define metamacro_if_eq18(VALUE) metamacro_if_eq17(metamacro_dec(VALUE))
+#define metamacro_if_eq19(VALUE) metamacro_if_eq18(metamacro_dec(VALUE))
+#define metamacro_if_eq20(VALUE) metamacro_if_eq19(metamacro_dec(VALUE))
+</span>
+<span class="c1">// metamacro_if_eq_recursive expansions</span>
+<span class="cp">#define metamacro_if_eq_recursive0(VALUE) \
+metamacro_concat(metamacro_if_eq_recursive0_, VALUE)
+</span>
+<span class="cp">#define metamacro_if_eq_recursive0_0(...) __VA_ARGS__ metamacro_consume_
+#define metamacro_if_eq_recursive0_1(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_2(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_3(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_4(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_5(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_6(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_7(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_8(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_9(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_10(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_11(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_12(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_13(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_14(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_15(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_16(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_17(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_18(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_19(...) metamacro_expand_
+#define metamacro_if_eq_recursive0_20(...) metamacro_expand_
+</span>
+<span class="cp">#define metamacro_if_eq_recursive1(VALUE) metamacro_if_eq_recursive0(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive2(VALUE) metamacro_if_eq_recursive1(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive3(VALUE) metamacro_if_eq_recursive2(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive4(VALUE) metamacro_if_eq_recursive3(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive5(VALUE) metamacro_if_eq_recursive4(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive6(VALUE) metamacro_if_eq_recursive5(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive7(VALUE) metamacro_if_eq_recursive6(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive8(VALUE) metamacro_if_eq_recursive7(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive9(VALUE) metamacro_if_eq_recursive8(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive10(VALUE) metamacro_if_eq_recursive9(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive11(VALUE) metamacro_if_eq_recursive10(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive12(VALUE) metamacro_if_eq_recursive11(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive13(VALUE) metamacro_if_eq_recursive12(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive14(VALUE) metamacro_if_eq_recursive13(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive15(VALUE) metamacro_if_eq_recursive14(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive16(VALUE) metamacro_if_eq_recursive15(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive17(VALUE) metamacro_if_eq_recursive16(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive18(VALUE) metamacro_if_eq_recursive17(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive19(VALUE) metamacro_if_eq_recursive18(metamacro_dec(VALUE))
+#define metamacro_if_eq_recursive20(VALUE) metamacro_if_eq_recursive19(metamacro_dec(VALUE))
+</span>
+<span class="c1">// metamacro_take expansions</span>
+<span class="cp">#define metamacro_take0(...)
+#define metamacro_take1(...) metamacro_head(__VA_ARGS__)
+#define metamacro_take2(...) metamacro_head(__VA_ARGS__), metamacro_take1(metamacro_tail(__VA_ARGS__))
+#define metamacro_take3(...) metamacro_head(__VA_ARGS__), metamacro_take2(metamacro_tail(__VA_ARGS__))
+#define metamacro_take4(...) metamacro_head(__VA_ARGS__), metamacro_take3(metamacro_tail(__VA_ARGS__))
+#define metamacro_take5(...) metamacro_head(__VA_ARGS__), metamacro_take4(metamacro_tail(__VA_ARGS__))
+#define metamacro_take6(...) metamacro_head(__VA_ARGS__), metamacro_take5(metamacro_tail(__VA_ARGS__))
+#define metamacro_take7(...) metamacro_head(__VA_ARGS__), metamacro_take6(metamacro_tail(__VA_ARGS__))
+#define metamacro_take8(...) metamacro_head(__VA_ARGS__), metamacro_take7(metamacro_tail(__VA_ARGS__))
+#define metamacro_take9(...) metamacro_head(__VA_ARGS__), metamacro_take8(metamacro_tail(__VA_ARGS__))
+#define metamacro_take10(...) metamacro_head(__VA_ARGS__), metamacro_take9(metamacro_tail(__VA_ARGS__))
+#define metamacro_take11(...) metamacro_head(__VA_ARGS__), metamacro_take10(metamacro_tail(__VA_ARGS__))
+#define metamacro_take12(...) metamacro_head(__VA_ARGS__), metamacro_take11(metamacro_tail(__VA_ARGS__))
+#define metamacro_take13(...) metamacro_head(__VA_ARGS__), metamacro_take12(metamacro_tail(__VA_ARGS__))
+#define metamacro_take14(...) metamacro_head(__VA_ARGS__), metamacro_take13(metamacro_tail(__VA_ARGS__))
+#define metamacro_take15(...) metamacro_head(__VA_ARGS__), metamacro_take14(metamacro_tail(__VA_ARGS__))
+#define metamacro_take16(...) metamacro_head(__VA_ARGS__), metamacro_take15(metamacro_tail(__VA_ARGS__))
+#define metamacro_take17(...) metamacro_head(__VA_ARGS__), metamacro_take16(metamacro_tail(__VA_ARGS__))
+#define metamacro_take18(...) metamacro_head(__VA_ARGS__), metamacro_take17(metamacro_tail(__VA_ARGS__))
+#define metamacro_take19(...) metamacro_head(__VA_ARGS__), metamacro_take18(metamacro_tail(__VA_ARGS__))
+#define metamacro_take20(...) metamacro_head(__VA_ARGS__), metamacro_take19(metamacro_tail(__VA_ARGS__))
+</span>
+<span class="c1">// metamacro_drop expansions</span>
+<span class="cp">#define metamacro_drop0(...) __VA_ARGS__
+#define metamacro_drop1(...) metamacro_tail(__VA_ARGS__)
+#define metamacro_drop2(...) metamacro_drop1(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop3(...) metamacro_drop2(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop4(...) metamacro_drop3(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop5(...) metamacro_drop4(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop6(...) metamacro_drop5(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop7(...) metamacro_drop6(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop8(...) metamacro_drop7(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop9(...) metamacro_drop8(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop10(...) metamacro_drop9(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop11(...) metamacro_drop10(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop12(...) metamacro_drop11(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop13(...) metamacro_drop12(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop14(...) metamacro_drop13(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop15(...) metamacro_drop14(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop16(...) metamacro_drop15(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop17(...) metamacro_drop16(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop18(...) metamacro_drop17(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop19(...) metamacro_drop18(metamacro_tail(__VA_ARGS__))
+#define metamacro_drop20(...) metamacro_drop19(metamacro_tail(__VA_ARGS__))
+</span></code></pre></div></div>
+
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

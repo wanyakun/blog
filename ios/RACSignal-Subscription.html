@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>一张图理解RACSignal的Subscription过程</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>一张图理解RACSignal的Subscription过程</h1><p>现在遇到很多朋友都在使用MVVM的开发方式，在iOS中使用MVVM的开发方式势必会用到ReactiveCocoa（RAC），而大部分人对其并不是很理解，而只停留在使用的层面，有些人能够说出RAC调用过程是先创建信号、然后订阅信号、然后发送信号。总的流程来讲是这个样的，但是看源码的话，里面细节还是蛮多的。下面分析一下RACSignal的Subscription过程。</p>
+
+<p>通过下面一张图理解RACSignal的调用过程：</p>
+
+<p><img src="http://kunkun.qiniudn.com/RAC.png?imageView2/2/w/1000" alt="RAC" /></p>
+
+<h2 id="创建signale">创建signale</h2>
+<p>RACSignal通过子类[RACDynamicSignal createSignal:]方法获得Signal，并将disSubscribe这个block保存在Signal中。</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">+</span> <span class="p">(</span><span class="n">RACSignal</span> <span class="o">*</span><span class="p">)</span><span class="nf">createSignal</span><span class="p">:(</span><span class="n">RACDisposable</span> <span class="o">*</span> <span class="p">(</span><span class="o">^</span><span class="p">)(</span><span class="n">id</span><span class="o">&lt;</span><span class="n">RACSubscriber</span><span class="o">&gt;</span> <span class="n">subscriber</span><span class="p">))</span><span class="nv">didSubscribe</span> <span class="p">{</span>
+	<span class="k">return</span> <span class="p">[</span><span class="n">RACDynamicSignal</span> <span class="nf">createSignal</span><span class="p">:</span><span class="n">didSubscribe</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">+</span> <span class="p">(</span><span class="n">RACSignal</span> <span class="o">*</span><span class="p">)</span><span class="nf">createSignal</span><span class="p">:(</span><span class="n">RACDisposable</span> <span class="o">*</span> <span class="p">(</span><span class="o">^</span><span class="p">)(</span><span class="n">id</span><span class="o">&lt;</span><span class="n">RACSubscriber</span><span class="o">&gt;</span> <span class="n">subscriber</span><span class="p">))</span><span class="nv">didSubscribe</span> <span class="p">{</span>
+	<span class="n">RACDynamicSignal</span> <span class="o">*</span><span class="n">signal</span> <span class="o">=</span> <span class="p">[[</span><span class="n">self</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">init</span><span class="p">];</span>
+	<span class="n">signal</span><span class="o">-&gt;</span><span class="n">_didSubscribe</span> <span class="o">=</span> <span class="p">[</span><span class="n">didSubscribe</span> <span class="nf">copy</span><span class="p">];</span>
+	<span class="k">return</span> <span class="p">[</span><span class="n">signal</span> <span class="nf">setNameWithFormat</span><span class="p">:</span><span class="s">@"+createSignal:"</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="创建subscriber">创建subscriber</h2>
+<p>signal通过调用subscribeNext方法生成subscriber，并将next、error、completed block保存在subscriber中</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="n">RACDisposable</span> <span class="o">*</span><span class="p">)</span><span class="nf">subscribeNext</span><span class="p">:(</span><span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="p">)(</span><span class="n">id</span> <span class="n">x</span><span class="p">))</span><span class="nv">nextBlock</span> <span class="p">{</span>
+	<span class="n">NSCParameterAssert</span><span class="p">(</span><span class="n">nextBlock</span> <span class="o">!=</span> <span class="nb">NULL</span><span class="p">);</span>
+	
+	<span class="n">RACSubscriber</span> <span class="o">*</span><span class="n">o</span> <span class="o">=</span> <span class="p">[</span><span class="n">RACSubscriber</span> <span class="nf">subscriberWithNext</span><span class="p">:</span><span class="n">nextBlock</span> <span class="nf">error</span><span class="p">:</span><span class="nb">NULL</span> <span class="n">completed</span><span class="o">:</span><span class="nb">NULL</span><span class="p">];</span>
+	<span class="k">return</span> <span class="p">[</span><span class="n">self</span> <span class="nf">subscribe</span><span class="p">:</span><span class="n">o</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">+</span> <span class="p">(</span><span class="n">instancetype</span><span class="p">)</span><span class="nf">subscriberWithNext</span><span class="p">:(</span><span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="p">)(</span><span class="n">id</span> <span class="n">x</span><span class="p">))</span><span class="nv">next</span> <span class="nf">error</span><span class="p">:(</span><span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="p">)(</span><span class="n">NSError</span> <span class="o">*</span><span class="n">error</span><span class="p">))</span><span class="nv">error</span> <span class="nf">completed</span><span class="p">:(</span><span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="p">)(</span><span class="kt">void</span><span class="p">))</span><span class="nv">completed</span> <span class="p">{</span>
+	<span class="n">RACSubscriber</span> <span class="o">*</span><span class="n">subscriber</span> <span class="o">=</span> <span class="p">[[</span><span class="n">self</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">init</span><span class="p">];</span>
+
+	<span class="n">subscriber</span><span class="o">-&gt;</span><span class="n">_next</span> <span class="o">=</span> <span class="p">[</span><span class="n">next</span> <span class="nf">copy</span><span class="p">];</span>
+	<span class="n">subscriber</span><span class="o">-&gt;</span><span class="n">_error</span> <span class="o">=</span> <span class="p">[</span><span class="n">error</span> <span class="nf">copy</span><span class="p">];</span>
+	<span class="n">subscriber</span><span class="o">-&gt;</span><span class="n">_completed</span> <span class="o">=</span> <span class="p">[</span><span class="n">completed</span> <span class="nf">copy</span><span class="p">];</span>
+
+	<span class="k">return</span> <span class="n">subscriber</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="进行subscribe">进行subscribe</h2>
+<p>第二步创建subscriber之后调用signal的subscribe方法，并将创建的subscriber作为参数。
+这一步会生成RACCompoundDisposable和RACPassthroughSubscriber对象。</p>
+<ul>
+  <li>RACCompoundDisposable：RACDisposable的子类，可以加入多个RACDisposable对象。当RACCompoundDisposable对象被dispose的时候，会dispose容器内的所有RACDisposable对象。</li>
+  <li>RACPassthroughSubscriber：分别保存对RACSignal，RACSubscriber，RACCompoundDisposable的引用。通过RACPassthroughSubscriber对象来转发给真正的Subscriber。</li>
+</ul>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="n">RACDisposable</span> <span class="o">*</span><span class="p">)</span><span class="nf">subscribe</span><span class="p">:(</span><span class="n">id</span><span class="o">&lt;</span><span class="n">RACSubscriber</span><span class="o">&gt;</span><span class="p">)</span><span class="nv">subscriber</span> <span class="p">{</span>
+	<span class="n">NSCParameterAssert</span><span class="p">(</span><span class="n">subscriber</span> <span class="o">!=</span> <span class="nb">nil</span><span class="p">);</span>
+
+	<span class="n">RACCompoundDisposable</span> <span class="o">*</span><span class="n">disposable</span> <span class="o">=</span> <span class="p">[</span><span class="n">RACCompoundDisposable</span> <span class="nf">compoundDisposable</span><span class="p">];</span>
+	<span class="n">subscriber</span> <span class="o">=</span> <span class="p">[[</span><span class="n">RACPassthroughSubscriber</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithSubscriber</span><span class="p">:</span><span class="n">subscriber</span> <span class="nf">signal</span><span class="p">:</span><span class="n">self</span> <span class="n">disposable</span><span class="o">:</span><span class="n">disposable</span><span class="p">];</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">didSubscribe</span> <span class="o">!=</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+		<span class="n">RACDisposable</span> <span class="o">*</span><span class="n">schedulingDisposable</span> <span class="o">=</span> <span class="p">[</span><span class="n">RACScheduler</span><span class="p">.</span><span class="n">subscriptionScheduler</span> <span class="nf">schedule</span><span class="p">:</span><span class="o">^</span><span class="p">{</span>
+			<span class="n">RACDisposable</span> <span class="o">*</span><span class="n">innerDisposable</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">didSubscribe</span><span class="p">(</span><span class="n">subscriber</span><span class="p">);</span>
+			<span class="p">[</span><span class="n">disposable</span> <span class="nf">addDisposable</span><span class="p">:</span><span class="n">innerDisposable</span><span class="p">];</span>
+		<span class="p">}];</span>
+
+		<span class="p">[</span><span class="n">disposable</span> <span class="nf">addDisposable</span><span class="p">:</span><span class="n">schedulingDisposable</span><span class="p">];</span>
+	<span class="p">}</span>
+	
+	<span class="k">return</span> <span class="n">disposable</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="执行dissubscribe-block">执行disSubscribe block</h2>
+<p>RACSignal通过RACScheduler.subscriptionScheduler来执行闭包，disSubscribe真正被调用的的位置就是上一步的<code class="highlighter-rouge">RACDisposable *innerDisposable = self.didSubscribe(subscriber);</code></p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="n">RACDisposable</span> <span class="o">*</span><span class="p">)</span><span class="nf">schedule</span><span class="p">:(</span><span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="p">)(</span><span class="kt">void</span><span class="p">))</span><span class="nv">block</span> <span class="p">{</span>
+	<span class="n">NSCParameterAssert</span><span class="p">(</span><span class="n">block</span> <span class="o">!=</span> <span class="nb">NULL</span><span class="p">);</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">RACScheduler</span><span class="p">.</span><span class="n">currentScheduler</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="k">return</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">backgroundScheduler</span> <span class="nf">schedule</span><span class="p">:</span><span class="n">block</span><span class="p">];</span>
+
+	<span class="n">block</span><span class="p">();</span>
+	<span class="k">return</span> <span class="nb">nil</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="调用sendnext-senderror-sendcompleted">调用sendNext sendError sendCompleted</h2>
+<p>进入didSubscribe闭包后，调用sendNext:、sendError:、sendCompleted。由于第三步中将subscriber替换为RACPassthroughSubscriber对象，真正的subscriber被存储在RACPassthroughSubscriber对象中，即innerSubscriber，所以这一步的各种send方法其实是一个转发过程。</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">sendNext</span><span class="p">:(</span><span class="n">id</span><span class="p">)</span><span class="nv">value</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">disposable</span><span class="p">.</span><span class="n">disposed</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">RACSIGNAL_NEXT_ENABLED</span><span class="p">())</span> <span class="p">{</span>
+		<span class="n">RACSIGNAL_NEXT</span><span class="p">(</span><span class="n">cleanedSignalDescription</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">signal</span><span class="p">),</span> <span class="n">cleanedDTraceString</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">innerSubscriber</span><span class="p">.</span><span class="n">description</span><span class="p">),</span> <span class="n">cleanedDTraceString</span><span class="p">([</span><span class="n">value</span> <span class="nf">description</span><span class="p">]));</span>
+	<span class="p">}</span>
+
+	<span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">innerSubscriber</span> <span class="nf">sendNext</span><span class="p">:</span><span class="n">value</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">sendError</span><span class="p">:(</span><span class="n">NSError</span> <span class="o">*</span><span class="p">)</span><span class="nv">error</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">disposable</span><span class="p">.</span><span class="n">disposed</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">RACSIGNAL_ERROR_ENABLED</span><span class="p">())</span> <span class="p">{</span>
+		<span class="n">RACSIGNAL_ERROR</span><span class="p">(</span><span class="n">cleanedSignalDescription</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">signal</span><span class="p">),</span> <span class="n">cleanedDTraceString</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">innerSubscriber</span><span class="p">.</span><span class="n">description</span><span class="p">),</span> <span class="n">cleanedDTraceString</span><span class="p">(</span><span class="n">error</span><span class="p">.</span><span class="n">description</span><span class="p">));</span>
+	<span class="p">}</span>
+
+	<span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">innerSubscriber</span> <span class="nf">sendError</span><span class="p">:</span><span class="n">error</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">sendCompleted</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">disposable</span><span class="p">.</span><span class="n">disposed</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+	<span class="k">if</span> <span class="p">(</span><span class="n">RACSIGNAL_COMPLETED_ENABLED</span><span class="p">())</span> <span class="p">{</span>
+		<span class="n">RACSIGNAL_COMPLETED</span><span class="p">(</span><span class="n">cleanedSignalDescription</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">signal</span><span class="p">),</span> <span class="n">cleanedDTraceString</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">innerSubscriber</span><span class="p">.</span><span class="n">description</span><span class="p">));</span>
+	<span class="p">}</span>
+
+	<span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">innerSubscriber</span> <span class="nf">sendCompleted</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="执行next-error-completed闭包">执行next error completed闭包</h2>
+<p>通过调用innerSubscriber的sendNext:、sendError、和sendCompleted方法执行真正的subscriber中的next error completed闭包</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">sendNext</span><span class="p">:(</span><span class="n">id</span><span class="p">)</span><span class="nv">value</span> <span class="p">{</span>
+	<span class="k">@synchronized</span> <span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="p">{</span>
+		<span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="n">nextBlock</span><span class="p">)(</span><span class="n">id</span><span class="p">)</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">next</span> <span class="nf">copy</span><span class="p">];</span>
+		<span class="k">if</span> <span class="p">(</span><span class="n">nextBlock</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+		<span class="n">nextBlock</span><span class="p">(</span><span class="n">value</span><span class="p">);</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">sendError</span><span class="p">:(</span><span class="n">NSError</span> <span class="o">*</span><span class="p">)</span><span class="nv">e</span> <span class="p">{</span>
+	<span class="k">@synchronized</span> <span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="p">{</span>
+		<span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="n">errorBlock</span><span class="p">)(</span><span class="n">NSError</span> <span class="o">*</span><span class="p">)</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">error</span> <span class="nf">copy</span><span class="p">];</span>
+		<span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">disposable</span> <span class="nf">dispose</span><span class="p">];</span>
+
+		<span class="k">if</span> <span class="p">(</span><span class="n">errorBlock</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+		<span class="n">errorBlock</span><span class="p">(</span><span class="n">e</span><span class="p">);</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">sendCompleted</span> <span class="p">{</span>
+	<span class="k">@synchronized</span> <span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="p">{</span>
+		<span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="n">completedBlock</span><span class="p">)(</span><span class="kt">void</span><span class="p">)</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">completed</span> <span class="nf">copy</span><span class="p">];</span>
+		<span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">disposable</span> <span class="nf">dispose</span><span class="p">];</span>
+
+		<span class="k">if</span> <span class="p">(</span><span class="n">completedBlock</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+		<span class="n">completedBlock</span><span class="p">();</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="过程回顾">过程回顾</h2>
+<p>去掉中间的繁杂细节，大致过程如下：
+1.通过createSignal生成信号
+2.通过subscribeNext确定信号内容到来时的处理方式
+3.didSubscribe block块中异步处理完毕之后，进行sendNext、sendError和sendCompleted自动处理</p>
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

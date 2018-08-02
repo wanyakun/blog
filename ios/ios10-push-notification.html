@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>iOS10适配远程推送</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>iOS10适配远程推送</h1><p>iOS10正式版发布之后，网上各种适配XCode8以及iOS10的文章满天飞。但对于iOS10适配远程推送的文章却不多。iOS10对于推送的修改还是非常大的，新增了UserNotifications Framework，今天就结合自己的项目，说一说实际适配的情况。</p>
+
+<h3 id="一capabilities中打开push-notifications-开关">一、Capabilities中打开Push Notifications 开关</h3>
+
+<p>在XCode7中这里的开关不打卡，推送也是可以正常使用的，但是在XCode8中，这里的开关必须要打开，不然会报错：</p>
+
+<blockquote>
+  <p>Error Domain=NSCocoaErrorDomain Code=3000 “未找到应用程序的“aps-environment”的授权字符串” UserInfo={NSLocalizedDescription=未找到应用程序的“aps-environment”的授权字符串}</p>
+</blockquote>
+
+<p>打开后会生成entitlements文件，在这里可以设置APS Environment，asp-environment的值为development或者production，代表开发环境或者生产环境。参考官方文档：https://developer.apple.com/library/content/documentation/Miscellaneous/Reference/EntitlementKeyReference/Chapters/EnablingLocalAndPushNotifications.html#//apple_ref/doc/uid/TP40011195-CH3-SW2</p>
+
+<h3 id="二推送的注册">二、推送的注册</h3>
+
+<p>首先引入UserNotifications Framework，</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">import</span> <span class="o">&lt;</span><span class="n">UserNotifications</span><span class="o">/</span><span class="n">UserNotifications</span><span class="p">.</span><span class="n">h</span><span class="o">&gt;</span>
+</code></pre></div></div>
+
+<p>iOS10修改了注册推送的方法，这里我们又要对不同版本分别进行设置了。在application didFinishLaunchingWithOptions方法中修改以前的推送设置（我只实现了iOS8以上的设置）</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">if</span> <span class="p">(</span><span class="n">IOS_VERSION</span> <span class="o">&gt;=</span> <span class="mi">10</span><span class="p">.</span><span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">UNUserNotificationCenter</span> <span class="o">*</span><span class="n">center</span> <span class="o">=</span> <span class="p">[</span><span class="n">UNUserNotificationCenter</span> <span class="nf">currentNotificationCenter</span><span class="p">];</span>
+        <span class="n">center</span><span class="p">.</span><span class="n">delegate</span> <span class="o">=</span> <span class="n">self</span><span class="p">;</span>
+        <span class="p">[</span><span class="n">center</span> <span class="nf">requestAuthorizationWithOptions</span><span class="p">:(</span><span class="n">UNAuthorizationOptionBadge</span> <span class="o">|</span> <span class="n">UNAuthorizationOptionSound</span> <span class="o">|</span> <span class="n">UNAuthorizationOptionAlert</span><span class="p">)</span> <span class="nf">completionHandler</span><span class="p">:</span><span class="o">^</span><span class="p">(</span><span class="n">BOOL</span> <span class="n">granted</span><span class="p">,</span> <span class="n">NSError</span> <span class="o">*</span> <span class="n">_Nullable</span> <span class="n">error</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">error</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">DLog</span><span class="p">(</span><span class="s">@"request authorization succeeded!"</span><span class="p">);</span>
+            <span class="p">}</span>
+        <span class="p">}];</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">([</span><span class="n">application</span> <span class="nf">respondsToSelector</span><span class="p">:</span><span class="k">@selector</span><span class="p">(</span><span class="nf">registerUserNotificationSettings</span><span class="p">:)])</span> <span class="p">{</span>
+            <span class="c1">//IOS8，创建UIUserNotificationSettings，并设置消息的显示类类型</span>
+            <span class="n">UIUserNotificationSettings</span> <span class="o">*</span><span class="n">notiSettings</span> <span class="o">=</span> <span class="p">[</span><span class="n">UIUserNotificationSettings</span> <span class="nf">settingsForTypes</span><span class="p">:(</span><span class="n">UIUserNotificationTypeBadge</span> <span class="o">|</span> <span class="n">UIUserNotificationTypeAlert</span> <span class="o">|</span> <span class="n">UIUserNotificationTypeSound</span><span class="p">)</span> <span class="nf">categories</span><span class="p">:</span><span class="nb">nil</span><span class="p">];</span>
+            
+            <span class="p">[</span><span class="n">application</span> <span class="nf">registerUserNotificationSettings</span><span class="p">:</span><span class="n">notiSettings</span><span class="p">];</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+</code></pre></div></div>
+
+<h5 id="三unusernotificationcenterdelegate代理实现">三、UNUserNotificationCenterDelegate代理实现</h5>
+
+<p>在iOS10中处理推送消息需要实现UNUserNotificationCenterDelegate的两个方法：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">userNotificationCenter</span><span class="p">:(</span><span class="n">UNUserNotificationCenter</span> <span class="o">*</span><span class="p">)</span><span class="nv">center</span> <span class="nf">willPresentNotification</span><span class="p">:(</span><span class="n">UNNotification</span> <span class="o">*</span><span class="p">)</span><span class="nv">notification</span> <span class="nf">withCompletionHandler</span><span class="p">:(</span><span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="p">)(</span><span class="n">UNNotificationPresentationOptions</span><span class="p">))</span><span class="nv">completionHandler</span>
+
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">userNotificationCenter</span><span class="p">:(</span><span class="n">UNUserNotificationCenter</span> <span class="o">*</span><span class="p">)</span><span class="nv">center</span> <span class="nf">didReceiveNotificationResponse</span><span class="p">:(</span><span class="n">UNNotificationResponse</span> <span class="o">*</span><span class="p">)</span><span class="nv">response</span> <span class="nf">withCompletionHandler</span><span class="p">:(</span><span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="p">)())</span><span class="nv">completionHandler</span> 
+</code></pre></div></div>
+
+<p>其中第一个方法为App在前台的时候收到推送执行的回调方法，第二个为App在后台的时候，点击推送信息，进入App后执行的 回调方法。</p>
+
+<p>以前处理推送，信息是在userInfo参数中，而新方法中表明上看并没有这个参数，其实我们一样可以获取到userInfo，如下：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">/// App在前台时候回调</span>
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">userNotificationCenter</span><span class="p">:(</span><span class="n">UNUserNotificationCenter</span> <span class="o">*</span><span class="p">)</span><span class="nv">center</span> <span class="nf">willPresentNotification</span><span class="p">:(</span><span class="n">UNNotification</span> <span class="o">*</span><span class="p">)</span><span class="nv">notification</span> <span class="nf">withCompletionHandler</span><span class="p">:(</span><span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="p">)(</span><span class="n">UNNotificationPresentationOptions</span><span class="p">))</span><span class="nv">completionHandler</span> <span class="p">{</span>
+    <span class="n">NSDictionary</span> <span class="o">*</span><span class="n">userInfo</span> <span class="o">=</span> <span class="n">notification</span><span class="p">.</span><span class="n">request</span><span class="p">.</span><span class="n">content</span><span class="p">.</span><span class="n">userInfo</span><span class="p">;</span>
+    <span class="p">[</span><span class="n">self</span> <span class="nf">handleRemoteNotificationForcegroundWithUserInfo</span><span class="p">:</span><span class="n">userInfo</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="c1">/// App在后台时候点击推送调用</span>
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">userNotificationCenter</span><span class="p">:(</span><span class="n">UNUserNotificationCenter</span> <span class="o">*</span><span class="p">)</span><span class="nv">center</span> <span class="nf">didReceiveNotificationResponse</span><span class="p">:(</span><span class="n">UNNotificationResponse</span> <span class="o">*</span><span class="p">)</span><span class="nv">response</span> <span class="nf">withCompletionHandler</span><span class="p">:(</span><span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="p">)())</span><span class="nv">completionHandler</span> <span class="p">{</span>
+    <span class="n">NSDictionary</span> <span class="o">*</span><span class="n">userInfo</span> <span class="o">=</span> <span class="n">response</span><span class="p">.</span><span class="n">notification</span><span class="p">.</span><span class="n">request</span><span class="p">.</span><span class="n">content</span><span class="p">.</span><span class="n">userInfo</span><span class="p">;</span>
+    <span class="p">[</span><span class="n">self</span> <span class="nf">handleRemoteNotificationBackgroundWithUserInfo</span><span class="p">:</span><span class="n">userInfo</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>完成上面三个步骤的设置，对于iOS10的推送设置基本就适配了。要想自定义Notification Content或者实现其他NotificationAction请参考其他文章。这里只是做了对iOS10的适配。</p>
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

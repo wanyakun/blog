@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>iOSApp内存优化（三）</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>iOSApp内存优化（三）</h1><p>在iOSApp中经常使用的一个组件叫NSTimer，但是它又是非常容易导致内存泄露组件。我们可能在Controller、View和ViewModel中使用到它，比如：做banner的自动翻页、开机广告倒计时、商品整点抢购倒计时等等等……</p>
+
+<h2 id="nstimer常规用法">NSTimer常规用法</h2>
+
+<p>我们在使用NSTimer的时候一般会这么去创建一个Timer</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">NSTimer</span> <span class="o">*</span><span class="n">timer</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSTimer</span> <span class="nf">scheduledTimerWithTimeInterval</span><span class="p">:</span><span class="mi">5</span> <span class="nf">target</span><span class="p">:</span><span class="n">self</span> <span class="n">selector</span><span class="o">:</span><span class="k">@selector</span><span class="p">(</span><span class="n">handleTimer</span><span class="o">:</span><span class="p">)</span> <span class="n">userInfo</span><span class="o">:</span><span class="nb">nil</span> <span class="n">repeats</span><span class="o">:</span><span class="nb">YES</span><span class="p">];</span>
+</code></pre></div></div>
+<p>或者</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">@property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">strong</span><span class="p">)</span> <span class="n">NSTimer</span> <span class="o">*</span><span class="n">timer</span><span class="p">;</span>
+
+<span class="n">self</span><span class="p">.</span><span class="n">timer</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSTimer</span> <span class="nf">scheduledTimerWithTimeInterval</span><span class="p">:</span><span class="mi">5</span> <span class="nf">target</span><span class="p">:</span><span class="n">self</span> <span class="n">selector</span><span class="o">:</span><span class="k">@selector</span><span class="p">(</span><span class="n">handleTimer</span><span class="o">:</span><span class="p">)</span> <span class="n">userInfo</span><span class="o">:</span><span class="nb">nil</span> <span class="n">repeats</span><span class="o">:</span><span class="nb">YES</span><span class="p">];</span>
+</code></pre></div></div>
+
+<p>然后销毁的时候会这么去销毁</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">removeTimer</span> <span class="p">{</span>
+	<span class="k">if</span> <span class="p">([</span><span class="n">self</span><span class="p">.</span><span class="n">timer</span> <span class="nf">isValid</span><span class="p">])</span> <span class="p">{</span>
+	    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">timer</span> <span class="nf">invalidate</span><span class="p">];</span>
+	    <span class="n">self</span><span class="p">.</span><span class="n">timer</span> <span class="o">=</span> <span class="nb">nil</span><span class="p">;</span>
+	<span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="nstimer出现内存泄露的原因">NSTimer出现内存泄露的原因</h2>
+
+<p>NSTimer分为一次性的Timer和重复性的Timer。首先，为了保证Timer在未来的某个时刻出发指定事件，Timer会被添加到当前线程的Runloop中，而Timer在初始化的时候对方法的接受者进行强引用（<strong>self持有timer，timer持有self，循环引用</strong>）。而两种Timer的区别在于一次性的Timer在完成调用后会自动将自己invalidate，而重复性Timer则经永远存在，直到你显示的去invalidate（<strong>NSTimer提供了一个方法invalidate，在执行完invalidate以后都会变成无效，因此对于重复性的Timer我们一定要有对应的invalidate</strong>）。所以NSTimer出现内存泄露一般都是发生在重复性的Timer上，并且是因为没有在合适的位置去invalidate Timer。</p>
+
+<h2 id="解决方法">解决方法</h2>
+
+<blockquote>
+  <p>对于Timer，千万不要试图在dealloc方法中去invalidate Timer，因为self持有timer，timer持有self出现循环引用，所以根本不会调用dealloc方法。</p>
+</blockquote>
+
+<ul>
+  <li>View中的Timer，当重复性的Timer出现在View中形成循环引用。可以重写view的removeFromSuperView方法， 在此方法中去销毁Timer，当view被remove的时候，Timer也会被invalidate:</li>
+</ul>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">removeFromSuperview</span> <span class="p">{</span>
+    <span class="p">[</span><span class="n">self</span> <span class="nf">removeTimer</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">super</span> <span class="nf">removeFromSuperview</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<ul>
+  <li>Controller和ViewModel中的Timer，当重复性的Timer出现在Controller或者ViewModel中形成循环因为，我们就不能像在View中在removeFromSuperView去invalidate Timer了。下面提供一种使用block来代替target-action的方法来解决Timer循环引用的方法，我们对NSTimer创建一个Category，并使用Category中的方法来创建Timer。</li>
+</ul>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#import &lt;Foundation/Foundation.h&gt;
+</span>
+<span class="k">@interface</span> <span class="nc">NSTimer</span> <span class="p">(</span><span class="nl">BlockSupport</span><span class="p">)</span>
+
+<span class="k">+</span> <span class="p">(</span><span class="n">NSTimer</span> <span class="o">*</span><span class="p">)</span><span class="nf">scheduledTimerWithTimeInterval</span><span class="p">:(</span><span class="n">NSTimeInterval</span><span class="p">)</span><span class="nv">interval</span> <span class="nf">block</span><span class="p">:(</span><span class="kt">void</span><span class="p">(</span><span class="o">^</span><span class="p">)())</span><span class="nv">block</span> <span class="nf">repeats</span><span class="p">:(</span><span class="n">BOOL</span><span class="p">)</span><span class="nv">repeats</span><span class="p">;</span>
+
+<span class="k">@end</span>
+</code></pre></div></div>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#import "NSTimer+UCYBlockSupport.h"
+</span>
+<span class="k">@implementation</span> <span class="nc">NSTimer</span> <span class="p">(</span><span class="nl">BlockSupport</span><span class="p">)</span>
+
+<span class="k">+</span> <span class="p">(</span><span class="n">NSTimer</span> <span class="o">*</span><span class="p">)</span><span class="nf">scheduledTimerWithTimeInterval</span><span class="p">:(</span><span class="n">NSTimeInterval</span><span class="p">)</span><span class="nv">interval</span> <span class="nf">block</span><span class="p">:(</span><span class="kt">void</span><span class="p">(</span><span class="o">^</span><span class="p">)())</span><span class="nv">block</span> <span class="nf">repeats</span><span class="p">:(</span><span class="n">BOOL</span><span class="p">)</span><span class="nv">repeats</span><span class="p">{</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">self</span> <span class="nf">scheduledTimerWithTimeInterval</span><span class="p">:</span><span class="n">interval</span>
+                                         <span class="nf">target</span><span class="p">:</span><span class="n">self</span>
+                                       <span class="nl">selector:</span><span class="k">@selector</span><span class="p">(</span><span class="n">blockInvoke</span><span class="o">:</span><span class="p">)</span>
+                                       <span class="nl">userInfo:</span><span class="p">[</span><span class="n">block</span> <span class="nf">copy</span><span class="p">]</span>
+                                        <span class="nl">repeats:</span><span class="n">repeats</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="k">+</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">blockInvoke</span><span class="p">:(</span><span class="n">NSTimer</span> <span class="o">*</span><span class="p">)</span><span class="nv">timer</span> <span class="p">{</span>
+    <span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="n">block</span><span class="p">)()</span> <span class="o">=</span> <span class="n">timer</span><span class="p">.</span><span class="n">userInfo</span><span class="p">;</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">block</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">block</span><span class="p">();</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">@end</span>
+</code></pre></div></div>
+
+<p>那么在创建Timer的时候使用Category中的方法创建，就不会形成对方法的接受者形成强引用。</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">@property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">strong</span><span class="p">)</span> <span class="n">NSTimer</span> <span class="o">*</span><span class="n">timer</span><span class="p">;</span>
+
+<span class="n">self</span><span class="p">.</span><span class="n">timer</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSTimer</span> <span class="nf">scheduledTimerWithTimeInterval</span><span class="p">:</span><span class="mi">5</span> <span class="n">block</span><span class="o">^</span><span class="p">{</span>
+	<span class="c1">//handleTimer方法处理</span>
+<span class="p">}</span> <span class="nf">repeats</span><span class="p">:</span><span class="nb">YES</span><span class="p">];</span>
+</code></pre></div></div>
+
+<p><strong>为了统一使用，建议无论是在View、Controller还是ViewModel中都使用Block的方法来创建Timer。</strong></p>
+
+<p>另外一种方法是使用NSPorxy，将NSTimer的target设置为NSProxy的实例，这一会就会打破Timer对SEL的target强引用，NSProxy不实现SEL，而是将消息转发给真正的target，且对真正的target若引用，这样就可以打破循环引用。</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">@interface</span> <span class="nc">YKNoteTimerProxy</span> <span class="p">:</span> <span class="nc">NSProxy</span>
+
+<span class="k">@property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">weak</span><span class="p">)</span> <span class="n">id</span> <span class="n">target</span><span class="p">;</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="n">instancetype</span><span class="p">)</span><span class="nf">initWithTarget</span><span class="p">:(</span><span class="n">id</span><span class="p">)</span><span class="nv">target</span><span class="p">;</span>
+
+<span class="k">+</span> <span class="p">(</span><span class="n">instancetype</span><span class="p">)</span><span class="nf">timerProxyWithTarget</span><span class="p">:(</span><span class="n">id</span><span class="p">)</span><span class="nv">target</span><span class="p">;</span>
+
+<span class="k">@end</span>
+
+<span class="cp">#import "YKNoteTimerProxy.h"
+</span>
+<span class="k">@implementation</span> <span class="nc">YKNoteTimerProxy</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="n">instancetype</span><span class="p">)</span><span class="nf">initWithTarget</span><span class="p">:(</span><span class="n">id</span><span class="p">)</span><span class="nv">target</span> <span class="p">{</span>
+    <span class="n">_target</span> <span class="o">=</span> <span class="n">target</span><span class="p">;</span>
+    <span class="k">return</span> <span class="n">self</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">+</span> <span class="p">(</span><span class="n">instancetype</span><span class="p">)</span><span class="nf">timerProxyWithTarget</span><span class="p">:(</span><span class="n">id</span><span class="p">)</span><span class="nv">target</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">[[</span><span class="n">YKNoteTimerProxy</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithTarget</span><span class="p">:</span><span class="n">target</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">dealloc</span> <span class="p">{</span>
+    <span class="n">NSLog</span><span class="p">(</span><span class="s">@"%s"</span><span class="p">,</span> <span class="n">__PRETTY_FUNCTION__</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c1">//- (id)forwardingTargetForSelector:(SEL)aSelector {</span>
+<span class="c1">//    return _target;</span>
+<span class="c1">//}</span>
+
+<span class="o">-</span> <span class="p">(</span><span class="n">NSMethodSignature</span> <span class="o">*</span><span class="p">)</span><span class="n">methodSignatureForSelector</span><span class="o">:</span><span class="p">(</span><span class="n">SEL</span><span class="p">)</span><span class="n">sel</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">_target</span> <span class="nf">methodSignatureForSelector</span><span class="p">:</span><span class="n">sel</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="o">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">forwardInvocation</span><span class="o">:</span><span class="p">(</span><span class="n">NSInvocation</span> <span class="o">*</span><span class="p">)</span><span class="n">invocation</span> <span class="p">{</span>
+    <span class="p">[</span><span class="n">invocation</span> <span class="nf">invokeWithTarget</span><span class="p">:</span><span class="n">_target</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="k">@end</span>
+</code></pre></div></div>
+
+<p>使用的时候如下所示：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="n">YKNoteTimerProxy</span> <span class="o">*</span><span class="n">proxy</span> <span class="o">=</span> <span class="p">[</span><span class="n">YKNoteTimerProxy</span> <span class="nf">timerProxyWithTarget</span><span class="p">:</span><span class="n">self</span><span class="p">];</span>
+<span class="n">_timer</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSTimer</span> <span class="nf">scheduledTimerWithTimeInterval</span><span class="p">:</span><span class="mi">1</span> <span class="nf">target</span><span class="p">:</span><span class="n">proxy</span> <span class="n">selector</span><span class="o">:</span><span class="k">@selector</span><span class="p">(</span><span class="n">timerHandler</span><span class="p">)</span> <span class="n">userInfo</span><span class="o">:</span><span class="nb">nil</span> <span class="n">repeats</span><span class="o">:</span><span class="nb">YES</span><span class="p">];</span>
+</code></pre></div></div>
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

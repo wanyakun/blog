@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>iOSApp内存优化（一）</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>iOSApp内存优化（一）</h1><h2 id="前言">前言</h2>
+
+<p>先吐槽下公司最近的变化，近两个月服务器端的同学将后端进行重构，重新设计了商品模型、网关和API调用。使用Alibaba开源的Dubbo分布式服务框架进行分层架构，并对后端服务最大化的解耦。</p>
+
+<p>API调用的修改，导致三端（Android、iOS和H5）Service层都要修改，这还不是伤害最大的，最大的是商品模型的重构导致前端数据Model完全改变，其实快赶上重写App了，短短两个月（包括春节假期）外加产品新需求，真心很赶很累。导致东西做完没时间进行Review、Instrument和优化，上线后出现各种问题。</p>
+
+<h2 id="memorywarning">MemoryWarning</h2>
+<p>随着iOS设备内存容量越来越大，好像碰到<strong>didReceiveMemoryWarning</strong>的情况越来越少，App中对这块越来越不重视。但对App内存使用的优化，我认为这一块是任何app都必不可少的。所以就先说说这一块。</p>
+
+<p>iOS的UIViewController 类给我们提供了处理内存不足的方法，我们可以在此方法中处理内存警告。</p>
+
+<ul>
+  <li>在iOS 3.0 之前，当系统的内存不足时，UIViewController的<strong>didReceiveMemoryWarining</strong> 方法会被调用，我们可以在<strong>didReceiveMemoryWarining</strong> 方法里释放掉部分暂时不用的资源</li>
+  <li>在iOS 3.0-iOS 5.0，UIViewController增加<strong>viewDidUnload</strong>方法，和viewDidLoad相对应，当系统内存不足的时候，<strong>didReceiveMemoryWarining</strong>方法会先被调用，并判断当前controller是否是在最上层，也就是用户当前看到的viewController，如果不是，系统会自动将viewController的view和所有子view全部销毁，然后调用viewController的<strong>viewDidUnload</strong>方法，若在最上层，怎不会销毁，也不会调用<strong>viewDidUnload</strong>方法。所以这时候进行内存处理的方法如下：</li>
+</ul>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">didReceiveMemoryWarning</span> <span class="p">{</span>
+    <span class="p">[</span><span class="n">super</span> <span class="nf">didReceiveMemoryWarning</span><span class="p">];</span><span class="c1">//如没有显示在window上，会自动将self.view释放。</span>
+    <span class="c1">// ios6.0以前，不用在此做处理，self.view释放之后，会调用下面的viewDidUnload函数，在viewDidUnload函数中做处理就可以了。</span>
+<span class="p">}</span>
+
+<span class="o">-</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">viewDidUnload</span> <span class="p">{</span>
+    <span class="c1">// Release any retained subviews of the main view.不包含self.view</span>
+    <span class="c1">//处理一些内存和资源问题。</span>
+    <span class="p">[</span><span class="n">super</span> <span class="nf">viewDidUnload</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<ul>
+  <li>在iOS6之后，<strong>viewDidUnload</strong>方法被废弃内存警告处理又回到iOS 3.0时代，但是是有区别的。看UIViewController头文件注释如下：</li>
+</ul>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">didReceiveMemoryWarning</span><span class="p">;</span> <span class="c1">// Called when the parent application receives a memory warning. On iOS 6.0 it will no longer clear the view by default.</span>
+</code></pre></div></div>
+
+<p>也就是说此方法不再销毁view。所以对iOS6之后又有了新的写法：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">didReceiveMemoryWarning</span> <span class="p">{</span>
+    <span class="p">[</span><span class="n">super</span> <span class="nf">didReceiveMemoryWarning</span><span class="p">];</span>
+    <span class="c1">//保证invisible, 因为即使在当前界面也会收到系统回调</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">isViewLoaded</span> <span class="o">&amp;&amp;</span> <span class="n">self</span><span class="p">.</span><span class="n">view</span><span class="p">.</span><span class="n">window</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// Dispose of any resources that can be recreated.</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">view</span> <span class="o">=</span> <span class="nb">nil</span><span class="p">;</span>   <span class="c1">//确保下次会重新加载调用viewDidLoad函数</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="处理方法优化">处理方法优化</h2>
+
+<p>但是每个controller都这么去写判断方法的确很麻烦。有两种方式可以更好的处理。</p>
+
+<ol>
+  <li>若你的项目controller是继承自BaseViewController，我想聪明的同学应该知道怎么去做了，就是在self.view = nil;这一行之前加入一个handleMemoryWarning方法，让所有子controller都去实现这个方法，进行内存释放即可。在父类中如下写处理：</li>
+</ol>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">didReceiveMemoryWarning</span> <span class="p">{</span>
+    <span class="p">[</span><span class="n">super</span> <span class="nf">didReceiveMemoryWarning</span><span class="p">];</span>
+    <span class="c1">//保证invisible, 因为即使在当前界面也会收到系统回调</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">isViewLoaded</span> <span class="o">&amp;&amp;</span> <span class="n">self</span><span class="p">.</span><span class="n">view</span><span class="p">.</span><span class="n">window</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// Dispose of any resources that can be recreated.</span>
+        <span class="p">[</span><span class="n">self</span> <span class="nf">handleMemoryWarning</span><span class="p">];</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">view</span> <span class="o">=</span> <span class="nb">nil</span><span class="p">;</span>   <span class="c1">//确保下次会重新加载调用viewDidLoad函数</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+<span class="o">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">handleMemoryWarning</span> <span class="p">{</span>
+    <span class="c1">// 空方法，需要子类实现，进行内存释放</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<ol>
+  <li>若你的项目controller不是继承自BaseController，目前光明都市菜园的controller就是如此，目的是对controller不进行任何污染，可以随便拎出来一个放到其他项目中。但是写了一个拦截器，用于拦截所有controller，并对一些方法进行<strong>method swizzling</strong> （拦截器的写法以后再介绍）将didReceiveMemoryWarning替换成如下方法，每个controller中处理内存警告还和方法一一样。</li>
+</ol>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code> <span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">didReceiveMemoryWarning</span><span class="p">:(</span><span class="n">UIViewController</span> <span class="err">\</span><span class="o">*</span><span class="p">)</span><span class="nv">viewController</span> <span class="p">{</span>
+    <span class="c1">//保证invisible, 因为即使在当前界面也会收到系统回调</span>
+    <span class="n">SEL</span> <span class="n">selector</span> <span class="o">=</span> <span class="n">NSSelectorFromString</span><span class="p">(</span><span class="s">@"handleMemoryWarning"</span><span class="p">);</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">viewController</span><span class="p">.</span><span class="n">isViewLoaded</span> <span class="o">&amp;&amp;</span>
+    <span class="n">viewController</span><span class="p">.</span><span class="n">view</span><span class="p">.</span><span class="n">window</span> <span class="o">==</span> <span class="nb">nil</span> <span class="o">&amp;&amp;</span>
+    <span class="p">[</span><span class="n">viewController</span> <span class="nf">respondsToSelector</span><span class="p">:</span><span class="n">selector</span><span class="p">])</span> <span class="p">{</span>
+        <span class="p">[</span><span class="n">viewController</span> <span class="nf">performSelector</span><span class="p">:</span><span class="n">selector</span> <span class="nf">withObject</span><span class="p">:</span><span class="nb">nil</span> <span class="n">afterDelay</span><span class="o">:</span><span class="mi">0</span><span class="p">.</span><span class="mi">0</span><span class="p">];</span>
+        <span class="n">viewController</span><span class="p">.</span><span class="n">view</span> <span class="o">=</span> <span class="nb">nil</span><span class="p">;</span>   <span class="c1">//确保下次会重新加载</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

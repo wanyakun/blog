@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>NavigationBar不显示问题</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>NavigationBar不显示问题</h1><p>本来今天想在自家app上购买莫斯利安，发现正常购买活动已经结束，价格恢复到以前了。但是我们有团购活动啊，一样也是很便宜的哦。</p>
+
+<p>所以顺便分享了下我们的团购页面到朋友圈，吸引小朋友没来购买我的牛奶。但是好丢人，被朋友发现了个bug，不过也是好事，能发现bug，找到原因并解决。脸虽然被打了，但只要问题解决就好。</p>
+
+<h3 id="问题描述">问题描述</h3>
+
+<p>新用户团购列表点击团购进入团购详情，然后点击我要开团，显示登录页面，点击注册送礼进入注册页面，注册成功后返回团购详情，再次点击我要开团进入结算页，NavigationBar不显示。</p>
+
+<h3 id="问题原因">问题原因</h3>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">viewWillAppear</span><span class="p">:(</span><span class="n">BOOL</span><span class="p">)</span><span class="nv">animated</span> <span class="p">{</span>
+    <span class="p">[</span><span class="n">super</span> <span class="nf">viewWillAppear</span><span class="p">:</span><span class="n">animated</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">navigationController</span> <span class="nf">setNavigationBarHidden</span><span class="p">:</span><span class="nb">YES</span> <span class="nf">animated</span><span class="p">:</span><span class="nb">NO</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">viewWillDisappear</span><span class="p">:(</span><span class="n">BOOL</span><span class="p">)</span><span class="nv">animated</span> <span class="p">{</span>
+    <span class="p">[</span><span class="n">super</span> <span class="nf">viewWillDisappear</span><span class="p">:</span><span class="n">animated</span><span class="p">];</span>
+    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">navigationController</span> <span class="nf">setNavigationBarHidden</span><span class="p">:</span><span class="nb">NO</span> <span class="nf">animated</span><span class="p">:</span><span class="nb">NO</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>页面设置NavigationBar显示与隐藏都是在viewWillAppear和viewWillDisappear中设置的，页面之间生命周期导致前一个也的viewWillDisappear出现在后一个页面的viewWillAppear之后，可能导致导航条不正常显示与隐藏。</p>
+
+<h3 id="问题解决">问题解决</h3>
+
+<ol>
+  <li>将所有Controller中上述viewWillAppear和viewWillDisappear方法中的设置setNavigationBarHidden代码去掉。</li>
+  <li>在UCYViewControllerIntercepter中clearNavigationBarControllerArray的getter方法中增加要隐藏NavigationBar的Controller名称，拦截器会在viewWillAppear之后判断页面是否需要隐藏NavigationBar来统一设置NavigationBar的隐藏和显示。</li>
+</ol>
+
+<p>顺便附上拦截器中的部分代码：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">viewWillAppear</span><span class="p">:(</span><span class="n">BOOL</span><span class="p">)</span><span class="nv">animated</span> <span class="nf">viewController</span><span class="p">:(</span><span class="n">UIViewController</span> <span class="o">*</span><span class="p">)</span><span class="nv">viewController</span> <span class="p">{</span>
+    <span class="cm">/* 你可以使用这个方法进行打日志，初始化基础业务相关的内容 */</span>
+    <span class="n">DLog</span><span class="p">(</span><span class="s">@"[%@ viewWillAppear:%@]"</span><span class="p">,</span> <span class="p">[</span><span class="n">viewController</span> <span class="nf">class</span><span class="p">],</span> <span class="n">animated</span> <span class="p">?</span> <span class="s">@"YES"</span> <span class="p">:</span> <span class="s">@"NO"</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">([</span><span class="n">self</span> <span class="nf">isControllerClearNavigation</span><span class="p">:</span><span class="n">viewController</span><span class="p">])</span> <span class="p">{</span>
+        <span class="n">viewController</span><span class="p">.</span><span class="n">navigationController</span><span class="p">.</span><span class="n">navigationBar</span><span class="p">.</span><span class="n">hidden</span> <span class="o">=</span> <span class="nb">YES</span><span class="p">;</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="n">viewController</span><span class="p">.</span><span class="n">navigationController</span><span class="p">.</span><span class="n">navigationBar</span><span class="p">.</span><span class="n">hidden</span> <span class="o">=</span> <span class="nb">NO</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="n">BOOL</span><span class="p">)</span><span class="nf">isControllerClearNavigation</span><span class="p">:(</span><span class="n">UIViewController</span> <span class="o">*</span><span class="p">)</span><span class="nv">viewController</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">NSString</span> <span class="o">*</span><span class="n">controllerName</span> <span class="k">in</span> <span class="n">self</span><span class="p">.</span><span class="n">clearNavigationBarControllerArray</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">([</span><span class="n">viewController</span> <span class="nf">isKindOfClass</span><span class="p">:</span><span class="n">NSClassFromString</span><span class="p">(</span><span class="n">controllerName</span><span class="p">)])</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="nb">YES</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nb">NO</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="n">NSMutableArray</span> <span class="o">*</span><span class="p">)</span><span class="n">clearNavigationBarControllerArray</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">_clearNavigationBarControllerArray</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">_clearNavigationBarControllerArray</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NSMutableArray</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithCapacity</span><span class="p">:</span><span class="mi">11</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCProductDetailViewController</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCGroupProductDetailViewController</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCHotBuyProductViewController</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCRushProductViewController</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCVideoDetailViewController</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCMyViewController</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCLoginViewController</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCRegisterViewController</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCFindPasswordViewController</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCVerifyPhoneViewController</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_clearNavigationBarControllerArray</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">kVCBindPhoneViewController</span><span class="p">];</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">_clearNavigationBarControllerArray</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>这样，在页面将要显示的时候，在拦截器中通过Aspects hook viewWillAppear方法，并在之后插入以下方法：</p>
+
+<p><strong>- (void)viewWillAppear:(BOOL)animated viewController:(UIViewController *)viewController {</strong></p>
+
+<p>我们就可以在此方法统一处理一些操作。我们的页面NavigationBar显示与否就在这里设置，将需要隐藏系统NavigationBar的页面添加到clearNavigationBarControllerArray中即可。</p>
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>

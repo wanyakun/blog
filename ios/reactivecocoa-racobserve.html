@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0">
+    <title>ReactiveCocoa中RACObserve实例变量</title>
+    <!-- CSS-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="/static/css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection">
+    <link href="/static/css/style.css" type="text/css" rel="stylesheet" media="screen,projection">
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+      <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
+    </nav><div class="container">
+  <h1>ReactiveCocoa中RACObserve实例变量</h1><p>在使用ReactiveCocoa前，必须要了解RAC和内存管理，有关RAC内存管理，参考下面这篇文章：<a href="http://hparis.github.io/blog/2015/07/25/rache-nei-cun-guan-li/">RAC和内存管理</a> 其中就讲了RACObserve的内存管理过程，也可以直接看源码。</p>
+
+<p>在使用RAC的时候，我们知道RAC对block都是copy赋值的。并且在上面文章中讲到使用RACObserve的时候，RACObserve创建的信号只有在其target和observe都发生dealloc的时候才会被disposable。</p>
+
+<p>场景：</p>
+
+<p>在App中有个页面显示购物车按钮，并且使用badgeView显示购物车中购买数量。所以在代码中声明属性：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">@property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">strong</span><span class="p">)</span> <span class="n">UIButton</span> <span class="o">*</span><span class="n">cartButton</span><span class="p">;</span>
+</code></pre></div></div>
+
+<p>而在getter方法如下：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+<span class="k">-</span> <span class="p">(</span><span class="n">UIButton</span> <span class="o">*</span><span class="p">)</span><span class="n">cartButton</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">_cartButton</span> <span class="o">==</span> <span class="nb">nil</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">_cartButton</span> <span class="o">=</span> <span class="p">[</span><span class="n">UIButton</span> <span class="nf">buttonWithType</span><span class="p">:</span><span class="n">UIButtonTypeCustom</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">_cartButton</span> <span class="nf">setImage</span><span class="p">:[</span><span class="n">UIImage</span> <span class="nf">imageNamed</span><span class="p">:</span><span class="s">@"nav_right_cart"</span><span class="p">]</span> <span class="nf">forState</span><span class="p">:</span><span class="n">UIControlStateNormal</span><span class="p">];</span>
+        <span class="n">_cartButton</span><span class="p">.</span><span class="n">titleLabel</span><span class="p">.</span><span class="n">textAlignment</span> <span class="o">=</span> <span class="n">NSTextAlignmentLeft</span><span class="p">;</span>
+        <span class="p">[</span><span class="n">_cartButton</span> <span class="nf">addTarget</span><span class="p">:</span> <span class="n">self</span> <span class="nf">action</span><span class="p">:</span> <span class="k">@selector</span><span class="p">(</span><span class="n">cartButtonDidTouchUpInside</span><span class="o">:</span><span class="p">)</span> <span class="n">forControlEvents</span><span class="o">:</span> <span class="n">UIControlEventTouchUpInside</span><span class="p">];</span>
+        <span class="p">[</span><span class="n">RACObserve</span><span class="p">([</span><span class="n">AppDelegate</span> <span class="nf">sharedAppDelegate</span><span class="p">],</span> <span class="n">totalItemNum</span><span class="p">)</span> <span class="nf">subscribeNext</span><span class="p">:</span><span class="o">^</span><span class="p">(</span><span class="n">id</span> <span class="n">x</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">_cartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">.</span><span class="n">badgeValue</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="nf">integerValue</span><span class="p">];</span>
+            <span class="n">_cartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">.</span><span class="n">position</span> <span class="o">=</span> <span class="n">MGBadgePositionTopRight</span><span class="p">;</span>
+            <span class="n">_cartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">.</span><span class="n">badgeColor</span> <span class="o">=</span> <span class="p">[</span><span class="n">UIColor</span> <span class="nf">redColor</span><span class="p">];</span>
+            <span class="p">[</span><span class="n">AnimationUtils</span> <span class="nf">scaleAnimationForView</span><span class="p">:</span><span class="n">_cartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">];</span>
+        <span class="p">}];</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">_cartButton</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>注意，以上方法使用RACObserve会导致实例变量<strong>_cartButton</strong>引用计数器增加，因为RACObserve会对block进行copy，从而导致实例变量<strong>_cartButton</strong>引用计数器增加，实例变量不能够被release，导致内存泄露。</p>
+
+<p>既然找到原因，解决办法如下：</p>
+
+<ol>
+  <li>在RACObserve前声明weak的weakCartButton变量，在block中是用weakCartButton</li>
+</ol>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code>        <span class="n">__weak</span> <span class="n">UIButton</span> <span class="o">*</span><span class="n">weakCartButton</span> <span class="o">=</span> <span class="n">_cartButton</span><span class="p">;</span>
+        <span class="p">[</span><span class="n">RACObserve</span><span class="p">([</span><span class="n">AppDelegate</span> <span class="nf">sharedAppDelegate</span><span class="p">],</span> <span class="n">totalItemNum</span><span class="p">)</span> <span class="nf">subscribeNext</span><span class="p">:</span><span class="o">^</span><span class="p">(</span><span class="n">id</span> <span class="n">x</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">weakCartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">.</span><span class="n">badgeValue</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="nf">integerValue</span><span class="p">];</span>
+            <span class="n">weakCartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">.</span><span class="n">position</span> <span class="o">=</span> <span class="n">MGBadgePositionTopRight</span><span class="p">;</span>
+            <span class="n">weakCartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">.</span><span class="n">badgeColor</span> <span class="o">=</span> <span class="p">[</span><span class="n">UIColor</span> <span class="nf">redColor</span><span class="p">];</span>
+            <span class="p">[</span><span class="n">AnimationUtils</span> <span class="nf">scaleAnimationForView</span><span class="p">:</span><span class="n">weakCartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">];</span>
+        <span class="p">}];</span>
+</code></pre></div></div>
+
+<p>或者将RACObserve写到外面，使用点语法，比如在添加过控件，然后在ViewDidLoad中写如下代码：</p>
+
+<div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code>        <span class="err">@weakify</span><span class="p">(</span><span class="n">self</span><span class="p">);</span>
+        <span class="p">[</span><span class="n">RACObserve</span><span class="p">([</span><span class="n">AppDelegate</span> <span class="nf">sharedAppDelegate</span><span class="p">],</span> <span class="n">totalItemNum</span><span class="p">)</span> <span class="nf">subscribeNext</span><span class="p">:</span><span class="o">^</span><span class="p">(</span><span class="n">id</span> <span class="n">x</span><span class="p">)</span> <span class="p">{</span>
+            <span class="err">@strongify</span><span class="p">(</span><span class="n">self</span><span class="p">);</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">cartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">.</span><span class="n">badgeValue</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="nf">integerValue</span><span class="p">];</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">cartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">.</span><span class="n">position</span> <span class="o">=</span> <span class="n">MGBadgePositionTopRight</span><span class="p">;</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">cartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">.</span><span class="n">badgeColor</span> <span class="o">=</span> <span class="p">[</span><span class="n">UIColor</span> <span class="nf">redColor</span><span class="p">];</span>
+            <span class="p">[</span><span class="n">AnimationUtils</span> <span class="nf">scaleAnimationForView</span><span class="p">:</span><span class="n">self</span><span class="p">.</span><span class="n">cartButton</span><span class="p">.</span><span class="n">badgeView</span><span class="p">];</span>
+        <span class="p">}];</span>
+</code></pre></div></div>
+
+</div><br><br>
+    <footer class="page-footer orange">
+      <div class="container">
+        <div class="row">
+          <div class="col l6 s12">
+            <h5 class="white-text">个人介绍</h5>
+            <p class="grey-text text-lighten-4">10年开始Android开发，一年后转做iOS，一直以来都从事iOS方面的工作，目前在拍拍贷从事iOS架构工作。 对组件化、iOS的架构设计有一定程度的理解。</p>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">导航</h5>
+            <ul>
+              <li><a class="white-text" href="#!">Category</a></li>
+              <li><a class="white-text" href="#!">Tag</a></li>
+              <li><a class="white-text" href="#!">Archive</a></li>
+              <li><a class="white-text" href="#!">Feed</a></li>
+            </ul>
+          </div>
+          <div class="col l3 s12">
+            <h5 class="white-text">链接</h5>
+            <ul>
+              <li><a class="white-text" href="https://github.com/wanyakun">Github</a></li>
+              <li><a class="white-text" href="https://weibo.com/wanyakun">Weibo</a></li>
+              <li><a class="white-text" href="#!">Facebook</a></li>
+              <li><a class="white-text" href="mailto://yakun.wan@gmail.com">Email</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer-copyright">
+        <div class="container">© 2018 wanyakun. All rights reserved. 豫ICP备17019333号-1.</div>
+      </div>
+    </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
+    <div class="tap-target blue" data-activates="view_source">
+      <div class="tap-target-content white-text">
+        <h5>Edit the Source Code!</h5>
+        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+      </div>
+    </div>
+    <!-- Scripts-->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="/static/js/materialize.js"></script>
+    <script src="/static/js/init.js"></script>
+  </body>
+</html>
