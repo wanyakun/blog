@@ -13,7 +13,7 @@
     <nav class="light-blue lighten-1" role="navigation">
       <div class="nav-wrapper container"><a class="brand-logo" id="logo-container" href="/">坤坤同学 ❤ 摄影</a></div>
     </nav><div class="container">
-  <h1>iOSApp内存优化（二）</h1><p>在我们的app的业务层中使用了MVVM架构，为了更好的实现MVVM，我们在CocoaPods中引入了<a href="https://github.com/CocoaPods/CocoaPods">ReactiveCocoa</a>， 这样就会大量使用Block，很多时候Block也的确比Delegate，Target-Action使用起来要方便，顺便再推荐个第三方类库<a href="https://github.com/zwaldowski/BlocksKit">BlocksKit</a>，但是在使用Block的时候最容易出现的问题就是循环引用，就循环引用的问题，循环引用危害非常大，controller中只要有循环引用出现，就controller就无法释放，导致app使用内存越来越大。</p>
+  <h1>iOSApp内存优化（二）</h1><p>在我们的app的业务层中使用了MVVM架构，为了更好的实现MVVM，我们在CocoaPods中引入了<a href="https://github.com/CocoaPods/CocoaPods">ReactiveCocoa</a>， 这样就会大量使用Block，很多时候Block也的确比Delegate，Target-Action使用起来要方便。顺便再推荐个第三方类库<a href="https://github.com/zwaldowski/BlocksKit">BlocksKit</a>，但是在使用Block的时候最容易出现的问题就是循环引用，就循环引用的问题，循环引用危害非常大，controller中只要有循环引用出现，就controller就无法释放，导致app使用内存越来越大。</p>
 
 <h2 id="循环引用出现的原因">循环引用出现的原因</h2>
 
@@ -153,8 +153,8 @@
     </footer><a class="blue waves-effect waves-light btn btn-large btn-floating" id="view_source" href="https://github.com/wanyakun/wanyakun.github.io"><i class="material-icons">code</i></a>
     <div class="tap-target blue" data-activates="view_source">
       <div class="tap-target-content white-text">
-        <h5>Edit the Source Code!</h5>
-        <p>Download and edit the source code. Jekyll-Pug-Material is under MIT license, so you can do whatever you want with the code.</p>
+        <h5>这里是修改代码的地方!</h5>
+        <p>这里是修改网站内容的地方，如果你想有文章想要发表，就给我发邮件吧！.</p>
       </div>
     </div>
     <!-- Scripts-->
