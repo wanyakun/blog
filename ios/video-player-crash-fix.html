@@ -51,11 +51,11 @@
 
 <p>第一步短点调试无果，Log日志输出又没有具体的内容可以查看，对于EXC_BAD_ACCESS看来还是要要启用僵尸对象来进行调试才行，按住option键，点击Xcode的Run按钮，打开如下界面，勾选 Enable Zombie Objects。</p>
 
-<p><img src="http://kunkun.qiniudn.com/QQ20160401-0@2x.png" alt="启用僵尸对象" /></p>
+<p><img src="http://file.aioser.com/QQ20160401-0@2x.png" alt="启用僵尸对象" /></p>
 
 <p>重新运行，按照之前的操作重新操作一遍，这次在log中便可以看到具体是什么原因到导致的问题。</p>
 
-<p><img src="http://kunkun.qiniudn.com/QQ20160401-1@2x.png" alt="Crash原因" /></p>
+<p><img src="http://file.aioser.com/QQ20160401-1@2x.png" alt="Crash原因" /></p>
 
 <p>原来问题出现在视频播放器这里，但是让人费解的是，视频详情的Controller正常dealloc，Controller中的播放器容器FMGVideoPlayView也正常dealloc，怎么就出现FMGVideoPlayView retain呢？</p>
 

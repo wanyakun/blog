@@ -20,7 +20,7 @@
 
 <p>事件是发送到应用程序用于通知用户操作的对象。 在iOS中，事件可以采取多种形式：多点触摸事件，运动事件和用于控制多媒体的事件。 这最后一种类型的事件被称为遥控事件或者远程控制事件，因为它可以源自外部附件。而在我们开发过程中最常用的就是多点触摸事件。</p>
 
-<p><img src="http://kunkun.qiniudn.com/yknote/eventhandling/events_to_app_2x.png?imageView2/2/w/600" alt="Event in iOS" /></p>
+<p><img src="http://file.aioser.com/yknote/eventhandling/events_to_app_2x.png?imageView2/2/w/600" alt="Event in iOS" /></p>
 
 <h3 id="二事件传递与响应链">二、事件传递与响应链</h3>
 
@@ -59,7 +59,7 @@
 
     <p>View E是视图层级中包含触摸的最低的视图，因此它成为命中测试视图（hit-test view）。</p>
 
-    <p><img src="http://kunkun.qiniudn.com/yknote/eventhandling/hit_testing_2x.png?imageView2/2/w/300" alt="Hit-testing returns the subview that was touched" /></p>
+    <p><img src="http://file.aioser.com/yknote/eventhandling/hit_testing_2x.png?imageView2/2/w/300" alt="Hit-testing returns the subview that was touched" /></p>
   </li>
 </ol>
 
@@ -111,7 +111,7 @@
 
 <p>当iOS检测到事件并将其传递给初始对象（通常是视图）时，响应者链序列开始。 初始视图拥有第一机会处理事件。下图显示了两个不同配置应用程序的两个不同事件传递路径。应用程序的事件传递路径取决于其特定结构，但所有事件传递路径都遵循相同的探视程序。</p>
 
-<p><img src="http://kunkun.qiniudn.com/yknote/eventhandling/iOS_responder_chain_2x.png?imageView2/2/w/600" alt="The responder chain on iOS" /></p>
+<p><img src="http://file.aioser.com/yknote/eventhandling/iOS_responder_chain_2x.png?imageView2/2/w/600" alt="The responder chain on iOS" /></p>
 
 <p>对于左侧的应用程序，事件遵循以下路径：</p>
 
@@ -299,7 +299,7 @@
 
 <p>假设有下图所示的布局，我们希望点击view C的时候view B响应事件，而点击View D和View E的时候正常响应。这个时候通过重写view C的hittest可以解决这个问题，在C的hittest里面直接返回nil就行了。</p>
 
-<p><img src="http://kunkun.qiniudn.com/yknote/eventhandling/hit_testing_2x.png?imageView2/2/w/300" alt="Hit-testing returns the subview that was touched" /></p>
+<p><img src="http://file.aioser.com/yknote/eventhandling/hit_testing_2x.png?imageView2/2/w/300" alt="Hit-testing returns the subview that was touched" /></p>
 
 <div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="n">UIView</span> <span class="o">*</span><span class="p">)</span><span class="nf">hitTest</span><span class="p">:(</span><span class="n">CGPoint</span><span class="p">)</span><span class="nv">point</span> <span class="nf">withEvent</span><span class="p">:(</span><span class="n">UIEvent</span> <span class="o">*</span><span class="p">)</span><span class="nv">event</span> <span class="p">{</span>
     <span class="n">NSLog</span><span class="p">(</span><span class="s">@"%s"</span><span class="p">,</span> <span class="n">__PRETTY_FUNCTION__</span><span class="p">);</span>
@@ -316,7 +316,7 @@
 
 <p>如下图，banner为CollectionView中的一个楼层，CollectionViewCell中有个scrollView，scrollView中为图片，现在将cell的宽度缩小一半（变为蓝色框部分），设置cell和scrollview的clipsToBounds为NO，现在在右侧处滑动，scrollview中的图片显然不会滑动，因为不满足<code class="highlighter-rouge">pointInside:withEvent:</code>，这时只需要修改cell的<code class="highlighter-rouge">- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event</code>方法，返回scrollview即可。</p>
 
-<p><img src="http://kunkun.qiniudn.com/yknote/eventhandling/IMG_5060.jpg?imageView2/2/w/600" alt="传递事件到子视图" /></p>
+<p><img src="http://file.aioser.com/yknote/eventhandling/IMG_5060.jpg?imageView2/2/w/600" alt="传递事件到子视图" /></p>
 
 <div class="language-objc highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="n">UIView</span> <span class="o">*</span><span class="p">)</span><span class="nf">hitTest</span><span class="p">:(</span><span class="n">CGPoint</span><span class="p">)</span><span class="nv">point</span> <span class="nf">withEvent</span><span class="p">:(</span><span class="n">UIEvent</span> <span class="o">*</span><span class="p">)</span><span class="nv">event</span> <span class="p">{</span>
     <span class="n">UIView</span> <span class="o">*</span><span class="n">hitTestView</span> <span class="o">=</span> <span class="p">[</span><span class="n">super</span> <span class="nf">hitTest</span><span class="p">:</span><span class="n">point</span> <span class="nf">withEvent</span><span class="p">:</span><span class="n">event</span><span class="p">];</span>
